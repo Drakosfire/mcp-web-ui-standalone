@@ -1,0 +1,74 @@
+{
+    "name": "mcp-web-ui",
+    "version": "1.0.4",
+    "description": "Ultra-lightweight vanilla JavaScript framework for MCP servers - Zero dependencies, perfect security, 2-3KB bundle size",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "files": [
+        "dist/**/*",
+        "src/vanilla/**/*",
+        "templates/**/*",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "VANILLA_JS_IMPLEMENTATION.md",
+        "VANILLA_JS_SECURITY_ANALYSIS.md",
+        "VANILLA_JS_PLAN.md"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc && node dist/index.js",
+        "clean": "rm -rf dist",
+        "prepublishOnly": "npm run clean && npm run build",
+        "test": "echo \"Tests coming soon\" && exit 0"
+    },
+    "keywords": [
+        "mcp",
+        "web-ui",
+        "vanilla-javascript",
+        "zero-dependencies",
+        "csp-compliant",
+        "lightweight",
+        "security",
+        "framework",
+        "disposable",
+        "ai-friendly",
+        "session-management",
+        "real-time",
+        "dynamic-ui",
+        "xss-protection"
+    ],
+    "author": "Alan Meigs",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Drakosfire/mcp-web-ui-standalone.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Drakosfire/mcp-web-ui-standalone/issues"
+    },
+    "homepage": "https://github.com/Drakosfire/mcp-web-ui-standalone#readme",
+    "dependencies": {
+        "express": "^4.18.2",
+        "uuid": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.11.24",
+        "@types/uuid": "^9.0.7",
+        "typescript": "^5.3.3"
+    },
+    "peerDependencies": {
+        "@modelcontextprotocol/sdk": "^1.11.1"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
