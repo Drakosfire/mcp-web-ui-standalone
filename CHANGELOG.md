@@ -6,12 +6,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2025-06-29
+
+### 🚀 **Major Feature Release: Scheduled Tasks Component**
+
+#### ✨ **New Features**
+- **Scheduled Tasks Dashboard**: Complete task management interface with creation, editing, and status tracking
+  - Modal-based task creation form with field validation
+  - Schedule parsing for once, daily, weekly, and monthly tasks
+  - Status badges with color-coded task states
+  - Integration with TaskManager for backend task handling
+- **Enhanced TableComponent**: Advanced table functionality for complex data management
+  - Action buttons with inline task operations (toggle, run-now, delete)
+  - Form state management for modal interfaces
+  - Dynamic field rendering with validation
+  - Improved responsive design and styling
+- **Modal Form System**: Reusable modal interface for data input
+  - Backdrop blur effects and modern UI design
+  - Field validation with error messaging
+  - Support for text, textarea, select, and date field types
+  - Accessible keyboard navigation and ESC key handling
+
+#### 🔧 **Critical Bug Fixes**
+- **Rate Limiting Issue**: Fixed aggressive rate limiting that was blocking normal UI interactions
+  - Moved rate limiting from UI events to API calls only
+  - Increased limits from 5 actions/1sec to 10 actions/5sec for more reasonable usage
+  - Users can now click buttons and interact with UI without "Action rate limited" errors
+- **Component Initialization Timing**: Resolved JavaScript inheritance issues in BaseComponent
+  - Fixed `ReferenceError: must call super constructor before using 'this'` errors
+  - Components now properly initialize without premature rendering
+  - Enhanced component creation guide with timing best practices
+
+#### 🎨 **UI/UX Improvements**
+- **Enhanced Styling**: Comprehensive CSS updates for better visual hierarchy
+  - Fixed column widths for better table layout
+  - Alternating row colors for improved readability
+  - Dark mode support with proper contrast ratios
+  - Responsive design improvements for mobile devices
+- **Form Validation**: Real-time validation with user-friendly error messages
+- **Status Indicators**: Color-coded badges for task status with proper contrast
+- **Loading States**: Better visual feedback during form submission and data loading
+
+#### 🛠️ **Developer Experience**
+- **Component Creation Guide**: Updated documentation with critical timing patterns
+  - Added inheritance timing rules and common pitfalls
+  - Best practices for component initialization
+  - Examples of proper constructor patterns
+- **Schema Integration**: Enhanced schema-driven task creation
+  - Action buttons properly passed from schema to components
+  - Form field configuration through UI schema
+  - Improved data transformation and validation
+
+#### 🔒 **Security Enhancements**
+- **Refined Rate Limiting**: More intelligent rate limiting that protects APIs without blocking UI
+- **Form Input Validation**: Enhanced sanitization for task creation forms
+- **Action Validation**: Improved validation for task management operations
+
+#### 📊 **Backend Integration**
+- **TaskManager Integration**: Seamless connection between UI and task management system
+  - `handleCreateTask()` method for processing new tasks
+  - `parseScheduleFromForm()` for converting user input to cron expressions
+  - Enhanced data transformation with `descriptionShort` field for table display
+
+---
+
 ## [1.0.4] - 2025-06-27
 
 ### 🛠️ **Critical Bug Fix Release**
 
 #### 🔧 **Fixed**
-- **File Routing Issue**: Corrected VanillaUIServer file paths to point to correct development directories
+- **File Routing Issue**: Corrected UIServer file paths to point to correct development directories
   - Changed from `dist/vanilla` to `src/vanilla` for framework files
   - Changed from `dist/templates/static` to `templates/static` for static files
   - Fixes "❌ Failed to initialize MCP UI" errors caused by missing framework files
@@ -36,7 +100,7 @@ Complete architectural rewrite from Alpine.js to vanilla JavaScript framework.
 #### 🔥 **Breaking Changes**
 - **Removed Alpine.js**: Complete elimination of Alpine.js dependency
 - **Zero dependencies**: No external JavaScript libraries required
-- **New server class**: `VanillaUIServer` replaces `UIServer`
+- **New server class**: `UIServer` replaces `UIServer`
 - **New initialization**: `MCP.initFromSchema()` replaces Alpine directives
 - **Bundle size**: Reduced from 8KB+ to 2-3KB total
 
@@ -94,7 +158,7 @@ Complete architectural rewrite from Alpine.js to vanilla JavaScript framework.
 
 #### 🛠️ **Server Enhancements**
 
-##### **VanillaUIServer**
+##### **UIServer**
 - **Perfect CSP Headers**: Automatic nonce generation and secure policies
 - **Combined Bundle Serving**: Single request for entire framework
 - **Enhanced Template Rendering**: Secure HTML generation with XSS protection

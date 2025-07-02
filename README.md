@@ -106,7 +106,7 @@ const components = MCP.initFromSchema(schema, initialData, config);
 - Global utilities and session management
 
 ### **Server Layer**
-- **VanillaUIServer.ts**: Enhanced server with perfect CSP compliance
+- **UIServer.ts**: Enhanced server with perfect CSP compliance
 - Secure template rendering
 - API endpoints with comprehensive validation
 
@@ -146,11 +146,26 @@ sanitizeLLMContent(content, 'category')  // Different rules per context
 ### Rate Limiting & Input Validation
 
 ```javascript
-// Built into BaseComponent
-isRateLimited()           // Prevents abuse
+// Intelligent rate limiting - protects APIs without blocking UI
+isRateLimited()           // Applied to API calls only (10 calls per 5 seconds)
 sanitizeActionData(data)  // Cleans all user input
 validateEvents()          // Ensures event authenticity
+
+// Rate limiting configuration
+const config = {
+    rateLimitWindow: 5000,      // 5 second window
+    maxActionsPerWindow: 10,    // 10 API calls per window
+    security: {
+        enableRateLimit: true   // Enable for production
+    }
+};
 ```
+
+**Improved Rate Limiting (v1.0.5)**:
+- ✅ UI interactions (button clicks, typing) are never rate limited
+- ✅ Only API calls are rate limited to prevent server abuse  
+- ✅ Reasonable limits: 10 API calls per 5 seconds
+- ✅ No more "Action rate limited" errors during normal usage
 
 ---
 
@@ -194,6 +209,55 @@ const table = MCP.Table('#data-table', tableData, {
 });
 ```
 
+### Scheduled Tasks Component
+
+Complete task management dashboard with modal form creation:
+
+```javascript
+// Schema-driven scheduled tasks interface
+const taskSchema = {
+    title: "Scheduled Tasks Dashboard",
+    components: [
+        {
+            type: "stats",
+            id: "task-overview", 
+            config: {
+                metrics: [
+                    { key: "total_tasks", label: "Total Tasks", icon: "📋" },
+                    { key: "active_tasks", label: "Active", icon: "🟢" },
+                    { key: "completed_today", label: "Completed Today", icon: "✅" }
+                ]
+            }
+        },
+        {
+            type: "table",
+            id: "tasks-list",
+            config: {
+                fields: [
+                    { key: "name", label: "Task Name", type: "text", sortable: true },
+                    { key: "schedule", label: "Schedule", type: "text" },
+                    { key: "status", label: "Status", type: "badge" },
+                    { key: "nextRun", label: "Next Run", type: "datetime" },
+                    { key: "actions", label: "Actions", type: "actions" }
+                ]
+            }
+        }
+    ],
+    actions: [
+        { id: "create-task", type: "button", label: "Create New Task", icon: "➕" },
+        { id: "toggle-enabled", type: "inline", handler: "toggle" },
+        { id: "run-now", type: "inline", handler: "run-now" },
+        { id: "delete", type: "inline", handler: "delete" }
+    ]
+};
+
+// Initialize the dashboard
+const components = MCP.initFromSchema(taskSchema, taskData, {
+    sessionToken: 'session-token',
+    pollInterval: 5000
+});
+```
+
 ### Statistics Component
 
 ```javascript
@@ -212,17 +276,54 @@ const stats = MCP.Stats('#stats-container', statsData, {
 });
 ```
 
+### Modal Form System
+
+Built-in modal interface for data input with validation:
+
+```javascript
+// TableComponent automatically handles modal forms when actions are defined
+const tableWithForms = MCP.Table('#data-table', data, {
+    sessionToken: 'session-token',
+    table: {
+        // Form fields for modal creation
+        formFields: [
+            { key: 'name', label: 'Task Name', type: 'text', required: true },
+            { key: 'description', label: 'Description', type: 'textarea' },
+            { key: 'schedule_type', label: 'Schedule Type', type: 'select', 
+              options: ['once', 'daily', 'weekly', 'monthly'] },
+            { key: 'schedule_date', label: 'Date', type: 'date', required: true }
+        ],
+        // Modal configuration
+        modal: {
+            title: 'Create New Task',
+            submitText: 'Create Task',
+            cancelText: 'Cancel',
+            validation: true,
+            backdrop: true
+        }
+    }
+});
+```
+
+Features:
+- **Field Validation**: Real-time validation with error messages
+- **Multiple Field Types**: text, textarea, select, date, number
+- **Keyboard Navigation**: ESC to close, Tab navigation
+- **Backdrop Click**: Close modal by clicking outside
+- **Loading States**: Visual feedback during submission
+- **Error Handling**: Graceful error display and recovery
+
 ---
 
 ## 🛠️ **Server Integration**
 
-### Using VanillaUIServer
+### Using UIServer
 
 ```typescript
-import { VanillaUIServer } from './server/VanillaUIServer.js';
+import { UIServer } from './server/UIServer.js';
 
 // The server now uses vanilla JS instead of Alpine.js
-const uiServer = new VanillaUIServer(
+const uiServer = new UIServer(
     session,
     schema,
     dataSource,
@@ -377,13 +478,15 @@ The server combines all framework files into a single 2-3KB request with automat
 
 ```javascript
 MCP.TodoList(selector, data, config)     // Create todo list
-MCP.Table(selector, data, config)        // Create data table  
+MCP.Table(selector, data, config)        // Create data table with modal support
 MCP.Stats(selector, data, config)        // Create stats display
 MCP.initFromHTML(data, config)           // Auto-init from HTML
-MCP.initFromSchema(schema, data, config) // Init from schema
+MCP.initFromSchema(schema, data, config) // Init from schema (recommended)
 MCP.getComponent(id)                     // Get component by ID
 MCP.destroyComponent(id)                 // Destroy component
 MCP.destroyAll()                         // Destroy all components
+MCP.events.emit(event, data)             // Global event system
+MCP.events.on(event, handler)            // Listen to global events
 ```
 
 ### BaseComponent Methods
@@ -401,6 +504,13 @@ on(event, selector, handler) // Secure event binding
 handleAction(action, data) // API actions
 fetchData()               // Refresh from server
 destroy()                 // Cleanup component
+
+// Modal & Form methods (TableComponent)
+showModal()               // Display modal form
+hideModal()               // Close modal form
+validateForm(formData)    // Validate form input
+submitForm(formData)      // Submit form to server
+resetForm()               // Clear form fields
 ```
 
 ---
@@ -409,7 +519,7 @@ destroy()                 // Cleanup component
 
 If migrating from the previous Alpine.js version:
 
-1. **Update server**: Use `VanillaUIServer` instead of `UIServer`
+1. **Update server**: Use `UIServer` instead of `UIServer`
 2. **Update templates**: Remove Alpine.js directives  
 3. **Update initialization**: Use `MCP.initFromSchema()` instead of Alpine
 4. **Update CSS**: Add vanilla JS framework styles
@@ -470,10 +580,11 @@ The framework is designed for extensibility:
 ## 🎯 **Use Cases**
 
 ### Task & Project Management
-- Personal todo lists
-- Team project tracking
-- Goal and habit tracking
-- Workflow management
+- **Scheduled Tasks**: Automated task management with cron-like scheduling
+- **Personal Todo Lists**: Individual task tracking with priorities and categories
+- **Team Project Tracking**: Collaborative project management with status updates
+- **Goal and Habit Tracking**: Long-term goal monitoring with progress indicators
+- **Workflow Management**: Complex workflow automation with conditional logic
 
 ### Data Administration
 - User management dashboards
@@ -512,6 +623,17 @@ const config = {
 
 ### Common Issues
 
+**"Action rate limited" errors**: This was fixed in v1.0.5 - update to latest version
+```javascript
+// Old issue: UI events were rate limited (fixed)
+// New behavior: Only API calls are rate limited
+const config = {
+    security: {
+        enableRateLimit: true  // Safe to enable - won't block UI
+    }
+};
+```
+
 **Data Not Updating**: Verify your data source returns fresh data
 ```javascript
 const dataSource = async (userId?: string) => {
@@ -525,6 +647,15 @@ const dataSource = async (userId?: string) => {
 <script nonce="{server-generated-nonce}">
 // Your JavaScript code
 </script>
+```
+
+**Modal Not Showing**: Ensure your table has actions defined in schema
+```javascript
+const schema = {
+    actions: [
+        { id: "create-task", type: "button", label: "Create New Task" }
+    ]
+};
 ```
 
 ---
