@@ -35,6 +35,7 @@ export interface UIComponent {
 export interface ComponentConfig {
     // For list/table components
     fields?: UIField[];
+    showItemCount?: boolean;
     // For form components
     submitAction?: string;
     // For stats components  
@@ -87,15 +88,12 @@ export interface MCPWebUIConfig<T = any> {
     enableLogging?: boolean;
     baseUrl?: string; // base URL for sessions, default 'localhost'
     bindAddress?: string; // address to bind server to, default 'localhost' or '0.0.0.0' for all
+    cssPath?: string; // Path to MCP server's CSS directory (e.g., './static' or '../todoodles/src/web-ui/static')
+    serverName?: string; // Explicit server name override (e.g., 'todoodles', 'grocery') - used for CSS file naming if not auto-detected
 }
 
 // Server management types
-export interface UIServer {
-    session: WebUISession;
-    expressApp: any; // Express app instance
-    server: any; // HTTP server instance
-    cleanup: () => Promise<void>;
-}
+// UIServer interface removed - use GenericUIServer instead
 
 // API response types
 export interface APIResponse<T = any> {

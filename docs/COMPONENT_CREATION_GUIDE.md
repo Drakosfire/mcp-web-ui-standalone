@@ -23,22 +23,39 @@ All components must extend `BaseComponent` and follow this pattern:
 ```javascript
 class YourComponent extends BaseComponent {
     constructor(element, data, config) {
-        // Set up component-specific configuration BEFORE calling super()
-        const componentConfig = {
+        // Call parent constructor FIRST (required by JavaScript)
+        super(element, data, config);
+
+        // Set up component-specific configuration AFTER super()
+        this.componentConfig = {
             // Your component defaults
             ...config.yourComponent
         };
-
-        // Call parent constructor - this triggers init() and render()
-        super(element, data, config);
-
-        // Set up instance properties AFTER super()
-        this.componentConfig = componentConfig;
         this.componentState = {
             // Initialize your component state
         };
 
+        // Re-render now that properties are set
+        this.render();
+
         this.log('INFO', 'YourComponent initialized');
+    }
+
+    /**
+     * Override init to prevent premature rendering during construction
+     */
+    init() {
+        if (this.isDestroyed) return;
+        
+        try {
+            // Don't render here - let constructor handle it after properties are set
+            this.bindEvents();
+            this.startPolling();
+            this.log('INFO', `Component initialized on element: ${this.element.id || this.element.className}`);
+        } catch (error) {
+            this.log('ERROR', `Failed to initialize component: ${error.message}`);
+            this.handleError(error);
+        }
     }
 
     render() {
@@ -76,6 +93,136 @@ class YourComponent extends BaseComponent {
     }
 }
 ```
+
+### ⚠️ **CRITICAL: JavaScript Inheritance Timing Issue**
+
+**This is the most common cause of component initialization failures. Read this carefully!**
+
+#### **The Problem: BaseComponent.init() Timing**
+
+BaseComponent's constructor calls `this.init()` immediately, which calls `render()` before your derived class constructor finishes. This causes:
+
+```javascript
+// ❌ WRONG PATTERN (Will Fail):
+class YourComponent extends BaseComponent {
+    constructor(element, data, config) {
+        // You CANNOT use 'this' before super()!
+        this.componentConfig = { /* config */ }; // ❌ ERROR: ReferenceError
+
+        super(element, data, config); // This calls init() -> render() immediately
+        
+        // These properties get set AFTER render() already tried to use them:
+        this.componentState = { /* state */ }; // ❌ Too late!
+    }
+}
+```
+
+**Error**: `ReferenceError: must call super constructor before using 'this' in derived class constructor`
+
+#### **✅ CORRECT PATTERN: Override init() Method**
+
+```javascript
+// ✅ CORRECT PATTERN:
+class YourComponent extends BaseComponent {
+    constructor(element, data, config) {
+        // Call super() FIRST (required by JavaScript)
+        super(element, data, config);
+
+        // Set component-specific properties AFTER super()
+        this.componentConfig = {
+            // Your component defaults
+            ...config.yourComponent
+        };
+        this.componentState = {
+            // Initialize your component state
+        };
+
+        // Re-render now that properties are set
+        this.render();
+
+        this.log('INFO', 'YourComponent initialized');
+    }
+
+    /**
+     * Override init to prevent premature rendering
+     * This is called by BaseComponent constructor BEFORE your properties are set
+     */
+    init() {
+        if (this.isDestroyed) return;
+
+        try {
+            // DON'T call render() here - let constructor handle it
+            this.bindEvents();
+            this.startPolling();
+            this.log('INFO', `Component initialized on element: ${this.element.id || this.element.className}`);
+        } catch (error) {
+            this.log('ERROR', `Failed to initialize component: ${error.message}`);
+            this.handleError(error);
+        }
+    }
+
+    render() {
+        if (this.isDestroyed) return;
+
+        // Now this.componentConfig and this.componentState are available
+        this.element.innerHTML = this.html`
+            <div class="component component-your-type">
+                ${this.trustedHtml(this.renderContent())}
+            </div>
+        `;
+    }
+}
+```
+
+#### **Why This Pattern Works**
+
+1. **JavaScript Rule**: You MUST call `super()` before using `this` in derived classes
+2. **BaseComponent Behavior**: Constructor immediately calls `this.init()` → `render()`
+3. **Our Solution**: Override `init()` to skip rendering, then render manually after setup
+4. **Result**: All properties are available when `render()` is called
+
+#### **Initialization Sequence**
+
+```
+1. new YourComponent() called
+2. super() called → BaseComponent constructor starts
+3. BaseComponent constructor calls this.init()
+4. YOUR overridden init() called (skips render)
+5. BaseComponent constructor finishes
+6. YOUR constructor continues, sets properties
+7. YOUR constructor calls this.render() manually
+8. Render succeeds with all properties available
+```
+
+#### **⚠️ Common Mistakes to Avoid**
+
+```javascript
+// ❌ DON'T: Try to set properties before super()
+constructor(element, data, config) {
+    this.componentConfig = {}; // ERROR: Cannot use 'this' before super()
+    super(element, data, config);
+}
+
+// ❌ DON'T: Forget to override init()
+constructor(element, data, config) {
+    super(element, data, config); // This calls render() too early
+    this.componentConfig = {};     // Too late - render() already failed
+}
+
+// ❌ DON'T: Call render() in your init() override
+init() {
+    this.render(); // This will fail - properties not set yet
+    this.bindEvents();
+}
+```
+
+#### **✅ Best Practices**
+
+1. **Always call `super()` first** in constructor
+2. **Always override `init()`** to prevent premature rendering
+3. **Set all properties after `super()`** call
+4. **Call `this.render()` manually** at end of constructor
+5. **Keep `init()` override minimal** (events, polling, logging only)
 
 ## HTML Rendering Patterns
 
@@ -377,6 +524,68 @@ switch (componentDef.type) {
 
 ## Common Pitfalls and Solutions
 
+### Problem: Component Initialization Fails - "ReferenceError: must call super constructor before using 'this'"
+
+**Symptoms**: 
+- JavaScript error: `ReferenceError: must call super constructor before using 'this' in derived class constructor`
+- Component never renders
+- Browser console shows initialization errors
+
+**Cause**: Trying to set component properties before calling `super()`, or not overriding `init()` to prevent premature rendering
+
+**Solution**:
+```javascript
+// ❌ Wrong - trying to use 'this' before super()
+class YourComponent extends BaseComponent {
+    constructor(element, data, config) {
+        this.componentConfig = {}; // ERROR! Cannot use 'this' before super()
+        super(element, data, config);
+    }
+}
+
+// ❌ Wrong - properties set too late
+class YourComponent extends BaseComponent {
+    constructor(element, data, config) {
+        super(element, data, config); // This calls render() immediately
+        this.componentConfig = {};     // Too late - render() already failed
+    }
+}
+
+// ✅ Correct - proper inheritance pattern
+class YourComponent extends BaseComponent {
+    constructor(element, data, config) {
+        super(element, data, config); // Call super() first
+        
+        // Set properties after super()
+        this.componentConfig = { /* config */ };
+        this.componentState = { /* state */ };
+        
+        // Re-render after properties are set
+        this.render();
+    }
+    
+    // Override init to prevent premature rendering
+    init() {
+        if (this.isDestroyed) return;
+        this.bindEvents();
+        this.startPolling();
+    }
+}
+```
+
+**Critical Rule**: ALWAYS call `super()` first, then set properties, then call `render()` manually, and override `init()` to skip rendering.
+
+### Problem: Component Properties Undefined During Render
+
+**Symptoms**: 
+- `TypeError: this.componentConfig is undefined`
+- `TypeError: this.componentState is undefined`
+- Component renders but shows no content or errors
+
+**Cause**: BaseComponent calls `render()` before your constructor finishes setting properties
+
+**Solution**: Use the inheritance pattern above with `init()` override to control rendering timing.
+
 ### Problem: HTML Appears as Escaped Text
 
 **Symptoms**: You see `&lt;div&gt;` instead of actual HTML elements
@@ -553,10 +762,10 @@ MCP.initFromSchema = function(schema, initialData, globalConfig) {
 
 ### Server Integration
 
-Ensure the VanillaUIServer includes your component:
+Ensure the UIServer includes your component:
 
 ```javascript
-// In VanillaUIServer.ts setupStaticFiles method
+// In UIServer.ts setupStaticFiles method
 const frameworkFiles = [
     path.join(vanillaPath, 'core', 'BaseComponent.js'),
     path.join(vanillaPath, 'components', 'TodoListComponent.js'),
@@ -568,24 +777,55 @@ const frameworkFiles = [
 
 ## Best Practices Summary
 
-1. **Always extend BaseComponent** - Never create components from scratch
-2. **Use trustedHtml() between methods** - But not within the same template
-3. **Handle empty data gracefully** - Always check for null/empty data
-4. **Implement proper cleanup** - Override destroy() for component-specific cleanup
-5. **Use data attributes for events** - More reliable than class-based targeting
-6. **Sanitize user input** - But trust system-generated HTML
-7. **Test incrementally** - Start simple, add complexity gradually
-8. **Log component lifecycle** - Helps with debugging integration issues
-9. **Follow naming conventions** - Use consistent patterns for CSS classes and data attributes
-10. **Document component APIs** - Include usage examples and configuration options
+### **🚨 CRITICAL RULES (Follow these to avoid initialization failures):**
+
+1. **ALWAYS call `super()` first** - Never use `this` before calling `super()` in constructor
+2. **ALWAYS override `init()`** - Prevent premature rendering during construction
+3. **Set properties AFTER `super()`** - Component properties must be set after parent constructor
+4. **Call `render()` manually** - Re-render at end of constructor after properties are set
+
+### **Essential Patterns:**
+
+5. **Always extend BaseComponent** - Never create components from scratch
+6. **Use trustedHtml() between methods** - But not within the same template literal
+7. **Use trustedHtml() for array.map() results** - Always join with `.join('')`
+8. **Handle empty data gracefully** - Always check for null/empty data
+
+### **Development Best Practices:**
+
+9. **Implement proper cleanup** - Override destroy() for component-specific cleanup
+10. **Use data attributes for events** - More reliable than class-based targeting
+11. **Sanitize user input** - But trust system-generated HTML with trustedHtml()
+12. **Test incrementally** - Start simple, add complexity gradually
+13. **Log component lifecycle** - Helps with debugging integration issues
+14. **Follow naming conventions** - Use consistent patterns for CSS classes and data attributes
+15. **Document component APIs** - Include usage examples and configuration options
 
 ## Example: Minimal Working Component
 
 ```javascript
 class MinimalComponent extends BaseComponent {
     constructor(element, data, config) {
+        // ALWAYS call super() first
         super(element, data, config);
+        
+        // Set component properties AFTER super()
+        this.componentConfig = {
+            showEmpty: true,
+            ...config.minimal
+        };
+        
+        // Re-render after properties are set
+        this.render();
+        
         this.log('INFO', 'MinimalComponent initialized');
+    }
+
+    // Override init to prevent premature rendering
+    init() {
+        if (this.isDestroyed) return;
+        this.bindEvents();
+        this.startPolling();
     }
 
     render() {

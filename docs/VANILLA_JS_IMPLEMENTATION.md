@@ -31,7 +31,7 @@ The framework consists of four main layers:
 - Global utilities and session management
 
 ### 4. Server Layer (`src/server/`)
-- **VanillaUIServer.ts**: Enhanced server with perfect CSP compliance
+- **UIServer.ts**: Enhanced server with perfect CSP compliance
 - Secure template rendering
 - API endpoints with comprehensive validation
 
@@ -302,15 +302,15 @@ const tableConfig = {
 
 ## 📊 Server Integration
 
-### Using VanillaUIServer
+### Using UIServer
 
-The VanillaUIServer replaces Alpine.js with vanilla JavaScript:
+The UIServer replaces Alpine.js with vanilla JavaScript:
 
 ```typescript
-import { VanillaUIServer } from './server/VanillaUIServer.js';
+import { UIServer } from './server/UIServer.js';
 
 // In MCPWebUI.ts - the server now uses vanilla JS
-const uiServer = new VanillaUIServer(
+const uiServer = new UIServer(
     session,
     schema,
     dataSource,
@@ -466,7 +466,7 @@ Built-in dark mode support:
 
 If migrating from the Alpine.js version:
 
-1. **Update server**: Use `VanillaUIServer` instead of `UIServer`
+1. **Update server**: Use `UIServer` instead of `UIServer`
 2. **Update templates**: Remove Alpine.js directives
 3. **Update initialization**: Use `MCP.initFromSchema()` instead of Alpine
 4. **Update CSS**: Add vanilla JS framework styles

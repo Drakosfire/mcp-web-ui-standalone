@@ -81,27 +81,27 @@ const MCP = {
  */
 
 /**
- * Create a TodoList component
+ * Create a List component (generic list functionality)
  * @param {string|HTMLElement} selector - CSS selector or DOM element
- * @param {Array} data - Initial todo data
+ * @param {Array} data - Initial list data
  * @param {Object} config - Component configuration
- * @returns {TodoListComponent} Initialized component instance
+ * @returns {ListComponent} Initialized component instance
  */
-MCP.TodoList = function (selector, data = [], config = {}) {
+MCP.List = function (selector, data = [], config = {}) {
     const element = typeof selector === 'string'
         ? document.querySelector(selector)
         : selector;
 
     if (!element) {
-        console.error('MCP.TodoList: Element not found:', selector);
+        console.error('MCP.List: Element not found:', selector);
         return null;
     }
 
     const mergedConfig = MCP.utils.mergeConfig(MCP.defaults, config);
-    const component = new TodoListComponent(element, data, mergedConfig);
+    const component = new ListComponent(element, data, mergedConfig);
 
     // Register component for management
-    MCP.registerComponent(element.id || 'todo-' + Date.now(), component);
+    MCP.registerComponent(element.id || 'list-' + Date.now(), component);
 
     return component;
 };
@@ -156,6 +156,215 @@ MCP.Stats = function (selector, data = {}, config = {}) {
     MCP.registerComponent(element.id || 'stats-' + Date.now(), component);
 
     return component;
+};
+
+/**
+ * Create a Dashboard component for displaying metrics and KPIs
+ * @param {string|HTMLElement} selector - CSS selector or DOM element
+ * @param {Array} data - Array of metric objects
+ * @param {Object} config - Component configuration
+ * @returns {DashboardComponent} Initialized component instance
+ */
+MCP.Dashboard = function (selector, data = [], config = {}) {
+    const element = typeof selector === 'string'
+        ? document.querySelector(selector)
+        : selector;
+
+    if (!element) {
+        console.error('MCP.Dashboard: Element not found:', selector);
+        return null;
+    }
+
+    const mergedConfig = MCP.utils.mergeConfig(MCP.defaults, config);
+    const component = new DashboardComponent(element, data, mergedConfig);
+
+    // Register component for management
+    MCP.registerComponent(element.id || 'dashboard-' + Date.now(), component);
+
+    return component;
+};
+
+/**
+ * Create a Status component for displaying status badges and indicators
+ * @param {string|HTMLElement} selector - CSS selector or DOM element
+ * @param {Object|string} data - Status data (object or simple string)
+ * @param {Object} config - Component configuration
+ * @returns {StatusComponent} Initialized component instance
+ */
+MCP.Status = function (selector, data = {}, config = {}) {
+    const element = typeof selector === 'string'
+        ? document.querySelector(selector)
+        : selector;
+
+    if (!element) {
+        console.error('MCP.Status: Element not found:', selector);
+        return null;
+    }
+
+    const mergedConfig = MCP.utils.mergeConfig(MCP.defaults, config);
+    const component = new StatusComponent(element, data, mergedConfig);
+
+    // Register component for management
+    MCP.registerComponent(element.id || 'status-' + Date.now(), component);
+
+    return component;
+};
+
+/**
+ * Create a ScheduleDisplay component for showing scheduling information
+ * @param {string|HTMLElement} selector - CSS selector or DOM element
+ * @param {Object} data - Schedule data object
+ * @param {Object} config - Component configuration
+ * @returns {ScheduleDisplayComponent} Initialized component instance
+ */
+MCP.ScheduleDisplay = function (selector, data = {}, config = {}) {
+    const element = typeof selector === 'string'
+        ? document.querySelector(selector)
+        : selector;
+
+    if (!element) {
+        console.error('MCP.ScheduleDisplay: Element not found:', selector);
+        return null;
+    }
+
+    const mergedConfig = MCP.utils.mergeConfig(MCP.defaults, config);
+    const component = new ScheduleDisplayComponent(element, data, mergedConfig);
+
+    // Register component for management
+    MCP.registerComponent(element.id || 'schedule-' + Date.now(), component);
+
+    return component;
+};
+
+/**
+ * Create a GroceryList component for managing grocery items
+ * @param {string|HTMLElement} selector - CSS selector or DOM element
+ * @param {Array} data - Initial grocery items data
+ * @param {Object} config - Component configuration
+ * @returns {GroceryListComponent} Initialized component instance
+ */
+MCP.GroceryList = function (selector, data = [], config = {}) {
+    const element = typeof selector === 'string'
+        ? document.querySelector(selector)
+        : selector;
+
+    if (!element) {
+        console.error('MCP.GroceryList: Element not found:', selector);
+        return null;
+    }
+
+    const mergedConfig = MCP.utils.mergeConfig(MCP.defaults, config);
+    const component = new GroceryListComponent(element, data, mergedConfig);
+
+    // Register component for management
+    MCP.registerComponent(element.id || 'grocery-list-' + Date.now(), component);
+
+    return component;
+};
+
+/**
+ * Create a GroceryStats component for displaying grocery list statistics
+ * @param {string|HTMLElement} selector - CSS selector or DOM element
+ * @param {Array} data - Grocery items data for statistics
+ * @param {Object} config - Component configuration
+ * @returns {GroceryStatsComponent} Initialized component instance
+ */
+MCP.GroceryStats = function (selector, data = [], config = {}) {
+    const element = typeof selector === 'string'
+        ? document.querySelector(selector)
+        : selector;
+
+    if (!element) {
+        console.error('MCP.GroceryStats: Element not found:', selector);
+        return null;
+    }
+
+    const mergedConfig = MCP.utils.mergeConfig(MCP.defaults, config);
+    const component = new GroceryStatsComponent(element, data, mergedConfig);
+
+    // Register component for management
+    MCP.registerComponent(element.id || 'grocery-stats-' + Date.now(), component);
+
+    return component;
+};
+
+/**
+ * Modal System Integration
+ * The modal system is available globally as window.MCPModal after ModalComponent.js is loaded
+ * These are convenience methods to ensure consistent access patterns
+ */
+
+/**
+ * Show an alert modal
+ * @param {Object} config - Modal configuration
+ * @returns {Promise} Promise that resolves when modal is closed
+ */
+MCP.alert = function (config = {}) {
+    if (!window.MCPModal) {
+        console.error('MCP.alert: Modal system not available. Ensure ModalComponent.js is loaded.');
+        return Promise.reject(new Error('Modal system not available'));
+    }
+    return window.MCPModal.alert(config);
+};
+
+/**
+ * Show a confirmation modal
+ * @param {Object} config - Modal configuration
+ * @returns {Promise} Promise that resolves with confirmation result
+ */
+MCP.confirm = function (config = {}) {
+    if (!window.MCPModal) {
+        console.error('MCP.confirm: Modal system not available. Ensure ModalComponent.js is loaded.');
+        return Promise.reject(new Error('Modal system not available'));
+    }
+    return window.MCPModal.confirm(config);
+};
+
+/**
+ * Show a form modal
+ * @param {Object} config - Modal configuration with form fields
+ * @returns {Promise} Promise that resolves with form data
+ */
+MCP.form = function (config = {}) {
+    if (!window.MCPModal) {
+        console.error('MCP.form: Modal system not available. Ensure ModalComponent.js is loaded.');
+        return Promise.reject(new Error('Modal system not available'));
+    }
+    return window.MCPModal.form(config);
+};
+
+/**
+ * Show a loading modal
+ * @param {Object} config - Modal configuration
+ * @returns {Promise} Promise that resolves when modal is closed
+ */
+MCP.loading = function (config = {}) {
+    if (!window.MCPModal) {
+        console.error('MCP.loading: Modal system not available. Ensure ModalComponent.js is loaded.');
+        return Promise.reject(new Error('Modal system not available'));
+    }
+    return window.MCPModal.loading(config);
+};
+
+/**
+ * Show a custom modal
+ * @param {Object} config - Modal configuration
+ * @returns {Promise} Promise that resolves when modal is closed
+ */
+MCP.modal = function (config = {}) {
+    if (!window.MCPModal) {
+        console.error('MCP.modal: Modal system not available. Ensure ModalComponent.js is loaded.');
+        return Promise.reject(new Error('Modal system not available'));
+    }
+    return window.MCPModal.show(config);
+};
+
+/**
+ * Access to the full modal manager
+ * @returns {ModalManager|null} Modal manager instance or null if not available
+ */
+MCP.getModalManager = function () {
+    return window.MCPModalManager || null;
 };
 
 /**
@@ -251,7 +460,7 @@ MCP.initFromHTML = function (initialData = {}, globalConfig = {}) {
             let component = null;
             switch (componentType) {
                 case 'TodoList':
-                    component = MCP.TodoList(element, componentData, finalConfig);
+                    component = MCP.List(element, componentData, finalConfig);
                     break;
                 case 'Table':
                     // Parse table-specific configuration
@@ -267,6 +476,21 @@ MCP.initFromHTML = function (initialData = {}, globalConfig = {}) {
                     break;
                 case 'Stats':
                     component = MCP.Stats(element, componentData, finalConfig);
+                    break;
+                case 'Dashboard':
+                    component = MCP.Dashboard(element, componentData, finalConfig);
+                    break;
+                case 'Status':
+                    component = MCP.Status(element, componentData, finalConfig);
+                    break;
+                case 'ScheduleDisplay':
+                    component = MCP.ScheduleDisplay(element, componentData, finalConfig);
+                    break;
+                case 'GroceryList':
+                    component = MCP.GroceryList(element, componentData, finalConfig);
+                    break;
+                case 'GroceryStats':
+                    component = MCP.GroceryStats(element, componentData, finalConfig);
                     break;
                 default:
                     console.warn(`MCP.initFromHTML: Unknown component type: ${componentType}`);
@@ -326,18 +550,65 @@ MCP.initFromSchema = function (schema, initialData = {}, globalConfig = {}) {
             let component = null;
             switch (componentDef.type) {
                 case 'list':
-                    component = MCP.TodoList(element, componentData, componentConfig);
+                    // Wrap config for ListComponent which expects config.list
+                    const listConfig = { ...globalConfig, list: componentDef.config || {} };
+                    // Pass component title from schema to main config
+                    if (componentDef.title) {
+                        listConfig.title = componentDef.title;
+                    }
+                    component = MCP.List(element, componentData, listConfig);
                     break;
                 case 'table':
-                    // Convert UI schema fields to table columns
+                    // Convert UI schema fields to table columns and pass actions
                     if (componentDef.config?.fields) {
                         componentConfig.table = componentConfig.table || {};
                         componentConfig.table.columns = componentDef.config.fields;
                     }
+                    // Pass schema-level actions to the table component
+                    if (schema.actions) {
+                        componentConfig.actions = schema.actions;
+                    }
                     component = MCP.Table(element, componentData, componentConfig);
                     break;
                 case 'stats':
-                    component = MCP.Stats(element, componentData, componentConfig);
+                    // Wrap config for StatsComponent which expects config.stats
+                    const statsConfig = { ...globalConfig, stats: componentDef.config || {} };
+                    console.log('=== MCP FRAMEWORK DEBUG ===');
+                    console.log('Initializing stats component:', componentDef.id);
+                    console.log('Component definition:', JSON.stringify(componentDef, null, 2));
+                    console.log('Global config:', JSON.stringify(globalConfig, null, 2));
+                    console.log('Component config:', JSON.stringify(componentDef.config, null, 2));
+                    console.log('Final statsConfig:', JSON.stringify(statsConfig, null, 2));
+                    console.log('Component data:', JSON.stringify(componentData, null, 2));
+                    console.log('Element:', element);
+                    console.log('=============================');
+                    component = MCP.Stats(element, componentData, statsConfig);
+                    break;
+                case 'dashboard':
+                    // Wrap config for DashboardComponent which expects config.dashboard
+                    const dashboardConfig = { ...globalConfig, dashboard: componentDef.config || {} };
+                    component = MCP.Dashboard(element, componentData, dashboardConfig);
+                    break;
+                case 'status':
+                    // Wrap config for StatusComponent which expects config.status
+                    const statusConfig = { ...globalConfig, status: componentDef.config || {} };
+                    component = MCP.Status(element, componentData, statusConfig);
+                    break;
+                case 'schedule':
+                case 'schedule-display':
+                    // Wrap config for ScheduleDisplayComponent which expects config.schedule
+                    const scheduleConfig = { ...globalConfig, schedule: componentDef.config || {} };
+                    component = MCP.ScheduleDisplay(element, componentData, scheduleConfig);
+                    break;
+                case 'grocery-list':
+                    // Wrap config for GroceryListComponent which expects config.grocery
+                    const groceryConfig = { ...globalConfig, grocery: componentDef.config || {} };
+                    component = MCP.GroceryList(element, componentData, groceryConfig);
+                    break;
+                case 'grocery-stats':
+                    // Wrap config for GroceryStatsComponent which expects config.groceryStats
+                    const groceryStatsConfig = { ...globalConfig, groceryStats: componentDef.config || {} };
+                    component = MCP.GroceryStats(element, componentData, groceryStatsConfig);
                     break;
                 default:
                     console.warn(`MCP.initFromSchema: Unknown component type: ${componentDef.type}`);

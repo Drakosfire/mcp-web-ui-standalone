@@ -45,8 +45,8 @@ class BaseComponent {
             pollInterval: 2000,
             apiBase: '/api',
             maxRetries: 3,
-            rateLimitWindow: 1000, // 1 second
-            maxActionsPerWindow: 5,
+            rateLimitWindow: 5000, // 5 seconds
+            maxActionsPerWindow: 10,
             security: {
                 sanitizeInput: true,
                 validateEvents: true,
@@ -80,8 +80,13 @@ class BaseComponent {
             '=': '&#x3D;'
         };
 
-        // Initialize component
-        this.init();
+        // Initialize component after allowing subclass constructor to complete
+        // This prevents the timing issue where init() is called before subclass properties are set
+        setTimeout(() => {
+            if (!this.isDestroyed) {
+                this.init();
+            }
+        }, 0);
     }
 
     /**
@@ -270,11 +275,8 @@ class BaseComponent {
                 return;
             }
 
-            // Rate limiting check
-            if (this.config.security.enableRateLimit && this.isRateLimited()) {
-                this.log('WARN', 'Action rate limited');
-                return;
-            }
+            // Note: Rate limiting is now handled at the API level, not for UI events
+            // This allows normal user interactions while protecting against API abuse
 
             // Element matching
             if (e.target.matches(selector)) {
@@ -328,6 +330,12 @@ class BaseComponent {
     async apiCall(endpoint, options = {}) {
         if (this.isDestroyed) {
             throw new Error('Component destroyed');
+        }
+
+        // Rate limiting check for API calls (prevents API abuse)
+        if (this.config.security.enableRateLimit && this.isRateLimited()) {
+            this.log('WARN', 'API call rate limited');
+            throw new Error('API call rate limited - please wait before making another request');
         }
 
         const url = `${this.config.apiBase}${endpoint}?token=${this.config.sessionToken}`;
@@ -442,8 +450,19 @@ class BaseComponent {
 
             this.log('INFO', `Action completed: ${action}`);
 
-            // Immediate data refresh after successful action
-            await this.fetchData();
+            // Only refresh data if the response doesn't contain form data
+            // Form responses need to be handled by the component directly
+            // Check both top-level and nested data.showForm
+            const hasFormData = result.showForm || (result.data && result.data.showForm);
+            if (!hasFormData) {
+                await this.fetchData();
+            }
+
+            // Return the actual response data if it's nested in result.data
+            // This handles the case where the server wraps responses in { success, data, timestamp }
+            if (result.data && typeof result.data === 'object' && result.data.success !== undefined) {
+                return result.data;
+            }
 
             return result;
         } catch (error) {

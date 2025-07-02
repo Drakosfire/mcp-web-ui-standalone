@@ -1,18 +1,19 @@
 import { SessionManager } from './session/SessionManager.js';
-import { VanillaUIServer } from './server/VanillaUIServer.js';
+import { GenericUIServer } from './server/GenericUIServer.js';
+import { UIServerConfigBuilder } from './server/UIServerConfig.js';
 import {
     MCPWebUIConfig,
-    WebUISession,
-    UIServer as UIServerInterface
+    WebUISession
 } from './types/index.js';
 
 /**
  * Main MCP Web UI framework class
  * Orchestrates session management and dynamic UI servers
+ * Now uses GenericUIServer with MCP server CSS architecture
  */
 export class MCPWebUI<T = any> {
     private sessionManager: SessionManager;
-    private activeServers = new Map<string, VanillaUIServer>();
+    private activeServers = new Map<string, GenericUIServer>();
     private config: Required<MCPWebUIConfig<T>>;
 
     constructor(config: MCPWebUIConfig<T>) {
@@ -25,6 +26,8 @@ export class MCPWebUI<T = any> {
             baseUrl: 'localhost',
             // If baseUrl is not localhost, default to binding all interfaces
             bindAddress: config.baseUrl && config.baseUrl !== 'localhost' ? '0.0.0.0' : 'localhost',
+            cssPath: './static', // Default MCP server CSS path
+            serverName: '', // Default server name
             ...config
         };
 
@@ -86,12 +89,16 @@ export class MCPWebUI<T = any> {
             // Create session (SessionManager will also check, but this ensures UI server cleanup)
             const session = this.sessionManager.createSession(userId);
 
-            // Create and start UI server
-            const uiServer = new VanillaUIServer(
+            // Create configuration for MCP server CSS architecture
+            const uiConfig = this.createUIServerConfig();
+
+            // Create and start GenericUIServer with MCP server CSS support
+            const uiServer = new GenericUIServer(
                 session,
                 this.config.schema,
                 this.config.dataSource,
                 this.config.onUpdate,
+                uiConfig,
                 this.config.pollInterval,
                 this.config.bindAddress
             );
@@ -106,6 +113,28 @@ export class MCPWebUI<T = any> {
             throw error;
         }
     }
+
+    /**
+ * Create UI server configuration with MCP server CSS support
+ * Environment variable driven approach
+ */
+    private createUIServerConfig() {
+        const configBuilder = UIServerConfigBuilder.create();
+        const config = configBuilder.build();
+
+        // CSS path priority:
+        // 1. Explicit config cssPath
+        // 2. Environment variable MCP_WEB_UI_CSS_PATH
+        // 3. Default: ./static
+        config.resources.css.mcpServerDirectory =
+            this.config.cssPath ||
+            process.env.MCP_WEB_UI_CSS_PATH ||
+            './static';
+
+        return config;
+    }
+
+
 
     /**
      * Get active session by token (for validation)

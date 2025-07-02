@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grocery List Web UI Demo</title>
+    <meta name="description" content="Demo of the MCP Vanilla JS Grocery List Web UI Components">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="../templates/static/styles.css">
+    <link rel="stylesheet" href="../templates/static/grocery-styles.css">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 2rem;
+            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+        }
+
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .demo-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .demo-section {
+            margin-bottom: 3rem;
+            background: white;
+            border-radius: 1rem;
+            padding: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .demo-section h2 {
+            margin: 0 0 1rem 0;
+            padding: 0 1rem;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0.5rem;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+
+            body {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="demo-container">
+        <!-- Demo Header -->
+        <header class="demo-header">
+            <h1>🛒 Grocery List Web UI Components</h1>
+            <p>Comprehensive grocery list management with real-time updates, category organization, and detailed
+                statistics.</p>
+            <p><strong>Phase 1 Features:</strong> Add items, mark as purchased, filter, search, category management, and
+                statistics dashboard.</p>
+        </header>
+
+        <!-- Stats Section -->
+        <section class="demo-section">
+            <h2>📊 Grocery Statistics Dashboard</h2>
+            <div id="grocery-stats-demo"></div>
+        </section>
+
+        <!-- Main Grocery List Section -->
+        <section class="demo-section">
+            <h2>🛒 Grocery List Manager</h2>
+            <div id="grocery-list-demo"></div>
+        </section>
+
+        <!-- Usage Examples -->
+        <section class="demo-section">
+            <h2>💻 Usage Examples</h2>
+            <div class="demo-grid">
+                <div>
+                    <h3>HTML Initialization</h3>
+                    <pre><code>&lt;!-- Auto-initialization with data attributes --&gt;
+&lt;div id="grocery-list" 
+     data-mcp-component="GroceryList"
+     data-mcp-config='{"grocery": {"showFilters": true}}'&gt;
+&lt;/div&gt;
+
+&lt;div id="grocery-stats" 
+     data-mcp-component="GroceryStats"
+     data-mcp-config='{"groceryStats": {"showCategoryBreakdown": true}}'&gt;
+&lt;/div&gt;</code></pre>
+                </div>
+
+                <div>
+                    <h3>JavaScript Initialization</h3>
+                    <pre><code>// Create grocery list component
+const groceryList = MCP.GroceryList('#grocery-list', groceryData, {
+    grocery: {
+        enableQuantity: true,
+        enableCategories: true,
+        showFilters: true,
+        categories: ['produce', 'dairy', 'meat', 'frozen', 'pantry']
+    }
+});
+
+// Create stats component
+const groceryStats = MCP.GroceryStats('#grocery-stats', groceryData, {
+    groceryStats: {
+        showCategoryBreakdown: true,
+        showRecentActivity: true
+    }
+});</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Schema-Driven Configuration -->
+        <section class="demo-section">
+            <h2>⚙️ Schema-Driven Configuration</h2>
+            <pre><code>const groceryUISchema = {
+    title: "Grocery List Manager",
+    components: [
+        {
+            type: "grocery-stats",
+            id: "grocery-stats",
+            config: {
+                showCategoryBreakdown: true,
+                showRecentActivity: true,
+                refreshInterval: 30000
+            }
+        },
+        {
+            type: "grocery-list", 
+            id: "main-grocery-list",
+            config: {
+                enableQuantity: true,
+                enableCategories: true,
+                groupByCategory: false,
+                showAddForm: true,
+                showFilters: true,
+                categories: [
+                    'produce', 'dairy', 'meat', 'frozen', 
+                    'pantry', 'cleaning', 'personal care', 
+                    'beverages', 'other'
+                ]
+            }
+        }
+    ]
+};
+
+// Initialize from schema
+MCP.initFromSchema(groceryUISchema, initialData, globalConfig);</code></pre>
+        </section>
+    </div>
+
+    <!-- Load Framework and Components -->
+    <script src="../src/vanilla/core/BaseComponent.js"></script>
+    <script src="../src/vanilla/components/GroceryListComponent.js"></script>
+    <script src="../src/vanilla/components/GroceryStatsComponent.js"></script>
+    <script src="../src/vanilla/MCPFramework.js"></script>
+
+    <script>
+        // Sample grocery data for demonstration
+        const sampleGroceryData = [
+            {
+                id: '1',
+                name: 'Organic Apples',
+                quantity: 6,
+                unit: 'pieces',
+                category: 'produce',
+                purchased: false,
+                createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: '2',
+                name: 'Whole Milk',
+                quantity: 1,
+                unit: 'gallon',
+                category: 'dairy',
+                purchased: true,
+                purchasedAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+                createdAt: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: '3',
+                name: 'Ground Beef',
+                quantity: 2,
+                unit: 'lbs',
+                category: 'meat',
+                purchased: false,
+                createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: '4',
+                name: 'Frozen Peas',
+                quantity: 1,
+                unit: 'bag',
+                category: 'frozen',
+                purchased: true,
+                purchasedAt: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+                createdAt: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: '5',
+                name: 'Pasta Sauce',
+                quantity: 2,
+                unit: 'jars',
+                category: 'pantry',
+                purchased: false,
+                createdAt: new Date(Date.now() - 1800000).toISOString(), // 30 minutes ago
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: '6',
+                name: 'Dish Soap',
+                quantity: 1,
+                unit: 'bottle',
+                category: 'cleaning',
+                purchased: false,
+                createdAt: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: '7',
+                name: 'Orange Juice',
+                quantity: 1,
+                unit: 'carton',
+                category: 'beverages',
+                purchased: true,
+                purchasedAt: new Date(Date.now() - 10800000).toISOString(), // 3 hours ago
+                createdAt: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: '8',
+                name: 'Shampoo',
+                quantity: 1,
+                unit: 'bottle',
+                category: 'personal care',
+                purchased: false,
+                createdAt: new Date(Date.now() - 600000).toISOString(), // 10 minutes ago
+                updatedAt: new Date().toISOString()
+            }
+        ];
+
+        // Global configuration
+        const globalConfig = {
+            sessionToken: 'demo-session-token',
+            apiBase: '/api/grocery',
+            pollInterval: 5000, // 5 seconds for demo
+            security: {
+                sanitizeInput: true,
+                validateEvents: true,
+                enableRateLimit: true
+            }
+        };
+
+        // Component-specific configurations
+        const groceryListConfig = {
+            grocery: {
+                enableQuantity: true,
+                enableCategories: true,
+                enablePurchaseToggle: true,
+                enableDelete: true,
+                showAddForm: true,
+                showFilters: true,
+                categories: [
+                    'produce', 'dairy', 'meat', 'frozen',
+                    'pantry', 'cleaning', 'personal care',
+                    'beverages', 'other'
+                ]
+            }
+        };
+
+        const groceryStatsConfig = {
+            groceryStats: {
+                showCategoryBreakdown: true,
+                showRecentActivity: true,
+                showCompletionRate: true,
+                maxRecentItems: 5
+            }
+        };
+
+        // Initialize components when DOM is ready
+        document.addEventListener('DOMContentLoaded', function () {
+            try {
+                // Initialize Statistics Component
+                const groceryStats = MCP.GroceryStats(
+                    '#grocery-stats-demo',
+                    sampleGroceryData,
+                    { ...globalConfig, ...groceryStatsConfig }
+                );
+
+                // Initialize Grocery List Component
+                const groceryList = MCP.GroceryList(
+                    '#grocery-list-demo',
+                    sampleGroceryData,
+                    { ...globalConfig, ...groceryListConfig }
+                );
+
+                console.log('✅ Grocery List Demo initialized successfully');
+                console.log('📊 Stats Component:', groceryStats);
+                console.log('🛒 List Component:', groceryList);
+
+                // Mock API calls for demonstration
+                // In a real application, these would connect to actual MCP server endpoints
+                window.mockGroceryAPI = {
+                    addItem: (data) => {
+                        console.log('🔄 Mock API: Adding item', data);
+                        // Simulate API response
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                const newItem = {
+                                    id: Date.now().toString(),
+                                    ...data,
+                                    purchased: false,
+                                    createdAt: new Date().toISOString(),
+                                    updatedAt: new Date().toISOString()
+                                };
+                                sampleGroceryData.push(newItem);
+                                groceryList.update(sampleGroceryData);
+                                groceryStats.update(sampleGroceryData);
+                                resolve(newItem);
+                            }, 500);
+                        });
+                    },
+
+                    updateItem: (id, data) => {
+                        console.log('🔄 Mock API: Updating item', id, data);
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                const index = sampleGroceryData.findIndex(item => item.id === id);
+                                if (index !== -1) {
+                                    sampleGroceryData[index] = {
+                                        ...sampleGroceryData[index],
+                                        ...data,
+                                        updatedAt: new Date().toISOString()
+                                    };
+                                    groceryList.update(sampleGroceryData);
+                                    groceryStats.update(sampleGroceryData);
+                                }
+                                resolve(sampleGroceryData[index]);
+                            }, 300);
+                        });
+                    },
+
+                    deleteItem: (id) => {
+                        console.log('🔄 Mock API: Deleting item', id);
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                const index = sampleGroceryData.findIndex(item => item.id === id);
+                                if (index !== -1) {
+                                    sampleGroceryData.splice(index, 1);
+                                    groceryList.update(sampleGroceryData);
+                                    groceryStats.update(sampleGroceryData);
+                                }
+                                resolve({ success: true });
+                            }, 300);
+                        });
+                    }
+                };
+
+            } catch (error) {
+                console.error('❌ Failed to initialize grocery demo:', error);
+            }
+        });
+    </script>
+</body>
+
+</html>

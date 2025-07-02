@@ -1,21 +1,19 @@
 // Main exports
 export { MCPWebUI } from './MCPWebUI.js';
-export { SessionManager } from './session/SessionManager.js';
-export { UIServer } from './server/UIServer.js';
 
-// Type exports
-export type {
-    WebUISession,
-    UISchema,
-    UIComponent,
-    UIField,
-    UIAction,
-    MCPWebUIConfig,
-    DataSourceFunction,
-    UpdateHandler,
-    APIResponse,
-    TemplateData
-} from './types/index.js';
+// Legacy UIServer removed - use GenericUIServer instead
+
+// New Modular Architecture (recommended)
+export { GenericUIServer } from './server/GenericUIServer.js';
+export { UIServerConfig, UIServerConfigBuilder, DEFAULT_UI_SERVER_CONFIG } from './server/UIServerConfig.js';
+export { ResourceManager } from './server/ResourceManager.js';
+export { TemplateEngine } from './server/TemplateEngine.js';
+
+// Session management
+export { SessionManager } from './session/SessionManager.js';
+
+// Type definitions
+export * from './types/index.js';
 
 // Utility functions for common UI schemas
 export const createTodoSchema = (title = "Todo List"): any => ({

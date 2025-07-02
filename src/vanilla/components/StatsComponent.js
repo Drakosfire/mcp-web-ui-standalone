@@ -46,9 +46,20 @@ class StatsComponent extends BaseComponent {
      * @param {Object} config - Configuration options
      */
     constructor(element, data, config) {
+        console.log('=== STATS COMPONENT DEBUG ===');
+        console.log('StatsComponent constructor called');
+        console.log('Element:', element);
+        console.log('Data:', JSON.stringify(data, null, 2));
+        console.log('Config received:', JSON.stringify(config, null, 2));
+        console.log('Config type:', typeof config);
+        console.log('Config.stats:', config?.stats);
+        console.log('Config.stats type:', typeof config?.stats);
+        console.log('===============================');
+
+        // Call super() first (required in JavaScript)
         super(element, data, config);
 
-        // Stats-specific configuration
+        // Now set stats-specific configuration AFTER super()
         this.statsConfig = {
             metrics: [],
             showTrends: false,
@@ -63,28 +74,59 @@ class StatsComponent extends BaseComponent {
             ...config.stats
         };
 
+        console.log('=== STATS COMPONENT DEBUG ===');
+        console.log('Post-super statsConfig:', JSON.stringify(this.statsConfig, null, 2));
+        console.log('statsConfig.metrics:', this.statsConfig.metrics);
+        console.log('===============================');
+
         // Previous data for trend calculation
         this.previousData = {};
 
         // Animation state
         this.animationEnabled = this.statsConfig.animate;
 
+        // Re-render now that config is properly set
+        this.render();
+
         this.log('INFO', 'StatsComponent initialized');
+    }
+
+    /**
+     * Override init to prevent premature rendering during construction
+     */
+    init() {
+        if (this.isDestroyed) return;
+
+        try {
+            // Don't render here - let constructor handle it after statsConfig is set
+            this.bindEvents();
+            this.startPolling();
+            this.log('INFO', `Component initialized on element: ${this.element.id || this.element.className}`);
+        } catch (error) {
+            this.log('ERROR', `Failed to initialize component: ${error.message}`);
+            this.handleError(error);
+        }
     }
 
     /**
      * Render the complete statistics interface
      */
     render() {
+        console.log('=== STATS COMPONENT DEBUG ===');
+        console.log('render() called');
+        console.log('this.isDestroyed:', this.isDestroyed);
+        console.log('About to call getMetricsToDisplay()');
+        console.log('===============================');
+
         if (this.isDestroyed) return;
 
         const metrics = this.getMetricsToDisplay();
 
         this.element.innerHTML = this.html`
             <div class="component component-stats">
-                ${this.renderHeader()}
-                ${this.renderStatsGrid(metrics)}
-                ${this.renderErrorMessage()}
+                ${this.trustedHtml(this.renderHeader())}
+                ${this.trustedHtml(this.renderStatsGrid(metrics))}
+                ${this.trustedHtml(this.renderErrorMessage())}
             </div>
         `;
 
@@ -119,7 +161,7 @@ class StatsComponent extends BaseComponent {
 
         return this.html`
             <div class="${gridClass}">
-                ${metrics.map(metric => this.renderStatCard(metric))}
+                ${this.trustedHtml(metrics.map(metric => this.renderStatCard(metric)).join(''))}
             </div>
         `;
     }
@@ -225,15 +267,51 @@ class StatsComponent extends BaseComponent {
      * Get metrics to display (use configured or default)
      */
     getMetricsToDisplay() {
-        if (this.statsConfig.metrics && this.statsConfig.metrics.length > 0) {
-            return this.statsConfig.metrics;
-        }
+        console.log('=== STATS COMPONENT DEBUG ===');
+        console.log('getMetricsToDisplay called');
+        console.log('this.statsConfig:', this.statsConfig);
+        console.log('this.statsConfig type:', typeof this.statsConfig);
 
-        // Filter default metrics based on available data
-        return this.statsConfig.defaultMetrics.filter(metric => {
-            const value = this.getMetricValue(metric);
-            return value !== undefined && value !== null;
-        });
+        try {
+            if (!this.statsConfig) {
+                console.error('CRITICAL: this.statsConfig is undefined!');
+                console.error('Constructor may have failed to initialize properly');
+                return [];
+            }
+
+            console.log('this.statsConfig.metrics:', this.statsConfig.metrics);
+            console.log('this.statsConfig.defaultMetrics:', this.statsConfig.defaultMetrics);
+            console.log('===============================');
+
+            if (this.statsConfig.metrics && this.statsConfig.metrics.length > 0) {
+                // Convert string metrics to proper metric objects
+                return this.statsConfig.metrics.map(metric => {
+                    if (typeof metric === 'string') {
+                        // Convert string to metric object
+                        return {
+                            key: metric,
+                            label: this.formatLabel(metric),
+                            icon: this.getDefaultIcon(metric),
+                            color: this.getDefaultColor(metric)
+                        };
+                    }
+                    // Already a proper metric object
+                    return metric;
+                });
+            }
+
+            // Filter default metrics based on available data
+            return this.statsConfig.defaultMetrics.filter(metric => {
+                const value = this.getMetricValue(metric);
+                return value !== undefined && value !== null;
+            });
+        } catch (error) {
+            console.error('=== STATS COMPONENT ERROR ===');
+            console.error('Error in getMetricsToDisplay:', error);
+            console.error('Stack trace:', error.stack);
+            console.error('==============================');
+            return [];
+        }
     }
 
     /**
@@ -309,6 +387,56 @@ class StatsComponent extends BaseComponent {
         return key
             .replace(/_/g, ' ')
             .replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    /**
+     * Get default icon for a metric key
+     * @param {string} key - Metric key
+     * @returns {string} Default icon
+     */
+    getDefaultIcon(key) {
+        const iconMap = {
+            'total': '📊',
+            'active': '🟢',
+            'scheduled': '⏰',
+            'pending': '⏳',
+            'failed': '❌',
+            'completed': '✅',
+            'running': '▶️',
+            'paused': '⏸️',
+            'success': '✅',
+            'error': '❌',
+            'warning': '⚠️',
+            'count': '🔢',
+            'users': '👥',
+            'tasks': '📋',
+            'items': '📄'
+        };
+
+        return iconMap[key.toLowerCase()] || '📈';
+    }
+
+    /**
+     * Get default color for a metric key  
+     * @param {string} key - Metric key
+     * @returns {string} Default color
+     */
+    getDefaultColor(key) {
+        const colorMap = {
+            'total': 'blue',
+            'active': 'green',
+            'scheduled': 'blue',
+            'pending': 'yellow',
+            'failed': 'red',
+            'completed': 'green',
+            'running': 'orange',
+            'paused': 'gray',
+            'success': 'green',
+            'error': 'red',
+            'warning': 'yellow'
+        };
+
+        return colorMap[key.toLowerCase()] || 'blue';
     }
 
     /**
