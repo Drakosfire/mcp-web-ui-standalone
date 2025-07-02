@@ -1272,3 +1272,684 @@ input:focus {
         justify-content: center;
     }
 }
+
+/* Dashboard Component Styles */
+.component-dashboard .dashboard-grid {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.component-dashboard.layout-horizontal .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.component-dashboard.layout-vertical .dashboard-grid {
+    grid-template-columns: 1fr;
+}
+
+.metric-card {
+    background: white;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.metric-card:hover,
+.metric-card.metric-hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.metric-card.trend-up {
+    border-left: 4px solid #28a745;
+}
+
+.metric-card.trend-down {
+    border-left: 4px solid #dc3545;
+}
+
+.metric-card.trend-neutral {
+    border-left: 4px solid #6c757d;
+}
+
+.metric-icon {
+    font-size: 1.5rem;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.metric-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2c3e50;
+    line-height: 1.2;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.metric-subtitle {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 0.125rem;
+}
+
+.metric-trend {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
+.dashboard-empty {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+}
+
+.dashboard-empty .empty-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+.dashboard-error {
+    text-align: center;
+    padding: 1rem;
+    color: #dc3545;
+    background: #f8d7da;
+    border-radius: 4px;
+    margin: 1rem;
+}
+
+/* Status Component Styles */
+.component-status {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.component-status.mode-block {
+    display: flex;
+    width: 100%;
+}
+
+.component-status.mode-minimal .status-icon {
+    display: none;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.2;
+    transition: all 0.2s ease;
+}
+
+.component-status.size-small .status-badge {
+    padding: 0.125rem 0.375rem;
+    font-size: 0.75rem;
+}
+
+.component-status.size-large .status-badge {
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+}
+
+.status-badge.status-clickable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.status-badge.status-clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.status-badge.status-clickable:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* Status Badge Color Schemes */
+.status-active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-inactive {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.status-pending {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-running {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.status-completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.status-cancelled {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.status-scheduled {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.status-paused {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.status-unknown {
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+.status-error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.status-icon {
+    font-size: 1em;
+    flex-shrink: 0;
+}
+
+.status-label {
+    flex: 1;
+    min-width: 0;
+}
+
+.status-timestamp {
+    font-size: 0.75em;
+    opacity: 0.8;
+    margin-left: 0.25rem;
+}
+
+.status-progress {
+    margin-top: 0.5rem;
+    position: relative;
+}
+
+.progress-track {
+    background: #e9ecef;
+    border-radius: 2px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.progress-track.progress-striped .progress-fill {
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
+    background-size: 1rem 1rem;
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+    0% {
+        background-position: 1rem 0;
+    }
+
+    100% {
+        background-position: 0 0;
+    }
+}
+
+.progress-fill {
+    background: #007bff;
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.3s ease;
+}
+
+.progress-percentage {
+    position: absolute;
+    top: 50%;
+    right: 0.25rem;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.status-description {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+/* Schedule Display Component Styles */
+.component-schedule {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.component-schedule.mode-expanded {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+}
+
+.component-schedule.mode-minimal .schedule-icon {
+    display: none;
+}
+
+.schedule-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.schedule-display.schedule-clickable {
+    cursor: pointer;
+    user-select: none;
+    padding: 0.25rem;
+    border-radius: 4px;
+}
+
+.schedule-display.schedule-clickable:hover {
+    background: #f8f9fa;
+    transform: translateY(-1px);
+}
+
+.schedule-display.schedule-clickable:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+.schedule-display.schedule-upcoming {
+    background: linear-gradient(90deg, #e3f2fd 0%, transparent 100%);
+    border-left: 3px solid #2196f3;
+    padding-left: 0.5rem;
+}
+
+.schedule-display.schedule-disabled {
+    opacity: 0.6;
+}
+
+.schedule-icon {
+    font-size: 1.1rem;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.schedule-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.schedule-description {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.schedule-text {
+    font-size: 0.875rem;
+    color: #495057;
+    font-weight: 500;
+}
+
+.schedule-disabled-indicator {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.schedule-next-run {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.next-run-label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.next-run-time {
+    color: #007bff;
+    font-weight: 600;
+}
+
+.schedule-next-run.next-run-overdue .next-run-time {
+    color: #dc3545;
+}
+
+.schedule-frequency {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+
+.schedule-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #dc3545;
+    font-size: 0.875rem;
+}
+
+/* Responsive Design for New Components */
+@media (max-width: 768px) {
+    .component-dashboard .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .metric-card {
+        padding: 0.75rem;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .metric-icon {
+        margin-bottom: 0.5rem;
+    }
+
+    .schedule-display {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .schedule-next-run {
+        margin-top: 0.125rem;
+    }
+}
+
+/* Scheduled Tasks Table Improvements */
+.component-table .data-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.component-table .data-table th:nth-child(1) {
+    /* Task */
+    width: 20%;
+}
+
+.component-table .data-table th:nth-child(2) {
+    /* Description */
+    width: 30%;
+}
+
+.component-table .data-table th:nth-child(3) {
+    /* Schedule */
+    width: 15%;
+}
+
+.component-table .data-table th:nth-child(4) {
+    /* Status */
+    width: 12%;
+}
+
+.component-table .data-table th:nth-child(5) {
+    /* Next Run */
+    width: 15%;
+}
+
+.component-table .data-table th:nth-child(6) {
+    /* Success % */
+    width: 8%;
+}
+
+.component-table .table-cell {
+    padding: 0.75rem 0.5rem;
+    vertical-align: top;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-wrap: break-word;
+}
+
+.component-table .cell-type-text {
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.component-table .cell-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    min-width: 70px;
+}
+
+.component-table .cell-type-number {
+    text-align: center;
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Improve table readability */
+.component-table .data-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+.component-table .data-table tbody tr:hover {
+    background-color: #e9ecef;
+}
+
+/* Make column headers more compact */
+.component-table .column-header {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6c757d;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 1200px) {
+    .component-table .data-table th:nth-child(2) {
+        /* Description */
+        width: 25%;
+    }
+
+    .component-table .data-table th:nth-child(1) {
+        /* Task */
+        width: 25%;
+    }
+}
+
+@media (max-width: 768px) {
+    .component-table .table-cell {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.8rem;
+    }
+
+    .component-table .cell-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+        min-width: 60px;
+    }
+}
+
+/* Dark Mode Support for New Components */
+@media (prefers-color-scheme: dark) {
+    .metric-card {
+        background: #2d3748;
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+
+    .metric-value {
+        color: #f7fafc;
+    }
+
+    .metric-label,
+    .metric-subtitle {
+        color: #a0aec0;
+    }
+
+    .dashboard-error {
+        background: #742a2a;
+        color: #fed7d7;
+    }
+
+    .status-badge {
+        filter: brightness(0.9);
+    }
+
+    .schedule-display.schedule-clickable:hover {
+        background: #4a5568;
+    }
+
+    .schedule-display.schedule-upcoming {
+        background: linear-gradient(90deg, #2c5282 0%, transparent 100%);
+        border-left-color: #63b3ed;
+    }
+
+    .schedule-text {
+        color: #e2e8f0;
+    }
+
+    .next-run-time {
+        color: #63b3ed;
+    }
+
+    .component-table .data-table tbody tr:nth-child(even) {
+        background-color: #2d3748;
+    }
+
+    .component-table .data-table tbody tr:hover {
+        background-color: #4a5568;
+    }
+}
+
+/* Form modal styles replaced by ModalComponent - see ModalComponent.js */
+
+/* Schema-based field rendering */
+.item-content-schema {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.item-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.item-field .field-label {
+    font-weight: 500;
+    color: #64748b;
+    min-width: 4rem;
+}
+
+.item-field .field-value {
+    flex: 1;
+}
+
+/* Badge styling for schema fields */
+.field-badge .badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+/* Priority badge colors */
+.badge-priority {
+    font-weight: 600;
+}
+
+.badge-priority.badge-low {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.badge-priority.badge-medium {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.badge-priority.badge-high {
+    background-color: #fecaca;
+    color: #dc2626;
+}
+
+.badge-priority.badge-urgent {
+    background-color: #fecaca;
+    color: #dc2626;
+    animation: pulse-urgent 2s infinite;
+}
+
+/* Category badge styling */
+.badge-category {
+    background-color: #e0e7ff;
+    color: #3730a3;
+}
+
+/* Date value styling */
+.field-date .date-value {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+/* Text value styling */
+.field-text .text-value {
+    color: #1e293b;
+}
+
+/* Responsive design for schema fields */
+@media (max-width: 768px) {
+    .item-field {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .item-field .field-label {
+        min-width: auto;
+        font-size: 0.75rem;
+    }
+}

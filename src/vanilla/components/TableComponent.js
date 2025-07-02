@@ -82,7 +82,29 @@ class TableComponent extends BaseComponent {
             custom: this.renderCustomCell.bind(this)
         };
 
+        // Re-render now that config is properly set
+        this.render();
+
+        // Bind events after everything is set up
+        this.bindEvents();
+
         this.log('INFO', 'TableComponent initialized with advanced features');
+    }
+
+    /**
+     * Override init to prevent premature rendering during construction
+     */
+    init() {
+        if (this.isDestroyed) return;
+
+        try {
+            // Don't call bindEvents here - let constructor handle it after config is set
+            this.startPolling();
+            this.log('INFO', `Component initialized on element: ${this.element.id || this.element.className}`);
+        } catch (error) {
+            this.log('ERROR', `Failed to initialize component: ${error.message}`);
+            this.handleError(error);
+        }
     }
 
     /**
@@ -96,12 +118,12 @@ class TableComponent extends BaseComponent {
 
         this.element.innerHTML = this.html`
             <div class="component component-table">
-                ${this.renderHeader()}
-                ${this.renderFilters()}
-                ${this.renderTableContainer()}
-                ${this.renderPagination()}
-                ${this.renderBulkActions()}
-                ${this.renderErrorMessage()}
+                ${this.trustedHtml(this.renderHeader())}
+                ${this.trustedHtml(this.renderFilters())}
+                ${this.trustedHtml(this.renderTableContainer())}
+                ${this.trustedHtml(this.renderPagination())}
+                ${this.trustedHtml(this.renderBulkActions())}
+                ${this.trustedHtml(this.renderErrorMessage())}
             </div>
         `;
     }
@@ -126,6 +148,14 @@ class TableComponent extends BaseComponent {
                     ` : ''}
                 </div>
                 <div class="table-controls">
+                    ${this.config.actions ? this.trustedHtml(this.config.actions.filter(action => action.type === 'button').map(action => `
+                        <button class="btn-action btn-${action.type}" 
+                                data-action="global-action" 
+                                data-action-id="${action.id}"
+                                title="${action.label}">
+                            ${action.icon || ''} ${action.label}
+                        </button>
+                    `).join('')) : ''}
                     ${this.tableConfig.exportable ? this.html`
                         <button class="btn-export" data-action="export" title="Export data">
                             Export
@@ -194,8 +224,8 @@ class TableComponent extends BaseComponent {
         return this.html`
             <div class="table-container">
                 <table class="data-table">
-                    ${this.renderTableHeader()}
-                    ${this.renderTableBody(pageData)}
+                    ${this.trustedHtml(this.renderTableHeader())}
+                    ${this.trustedHtml(this.renderTableBody(pageData))}
                 </table>
             </div>
         `;
@@ -218,20 +248,20 @@ class TableComponent extends BaseComponent {
                             >
                         </th>
                     ` : ''}
-                    ${this.tableConfig.columns.map(column => this.html`
+                    ${this.trustedHtml(this.tableConfig.columns.map(column => `
                         <th class="column-header ${column.sortable !== false && this.tableConfig.sortable ? 'sortable' : ''} ${this.tableState.sortColumn === column.key ? 'sorted' : ''}"
                             data-column="${column.key}"
                             data-action="${column.sortable !== false && this.tableConfig.sortable ? 'sort' : ''}">
                             <div class="column-header-content">
                                 <span class="column-title">${column.label || column.key}</span>
-                                ${column.sortable !== false && this.tableConfig.sortable ? this.html`
+                                ${column.sortable !== false && this.tableConfig.sortable ? `
                                     <span class="sort-indicator ${this.tableState.sortColumn === column.key ? this.tableState.sortDirection : ''}">
                                         ↕
                                     </span>
                                 ` : ''}
                             </div>
                         </th>
-                    `)}
+                    `).join(''))}
                 </tr>
             </thead>
         `;
@@ -244,7 +274,7 @@ class TableComponent extends BaseComponent {
     renderTableBody(data) {
         return this.html`
             <tbody>
-                ${data.map((row, index) => this.renderTableRow(row, index))}
+                ${this.trustedHtml(data.map((row, index) => this.renderTableRow(row, index)).join(''))}
             </tbody>
         `;
     }
@@ -271,12 +301,12 @@ class TableComponent extends BaseComponent {
                         >
                     </td>
                 ` : ''}
-                ${this.tableConfig.columns.map(column => this.html`
+                ${this.trustedHtml(this.tableConfig.columns.map(column => `
                     <td class="table-cell cell-${column.key} cell-type-${column.type || 'text'}"
                         data-column="${column.key}">
                         ${this.renderCell(row, column)}
                     </td>
-                `)}
+                `).join(''))}
             </tr>
         `;
     }
@@ -379,10 +409,26 @@ class TableComponent extends BaseComponent {
             return '<span class="cell-empty">—</span>';
         }
 
-        const badgeClass = column.badgeConfig?.colorMap?.[value] || 'default';
+        let badgeText = value;
+        let badgeColor = null;
+
+        // Handle complex badge objects
+        if (typeof value === 'object' && value !== null) {
+            badgeText = value.text || value.label || String(value);
+            badgeColor = value.color;
+        }
+
+        // Use configured color mapping or direct color from object
+        let badgeStyle = '';
+        if (badgeColor) {
+            badgeStyle = `style="background-color: ${badgeColor}; color: white;"`;
+        } else if (column.badgeConfig?.colorMap?.[badgeText]) {
+            const configColor = column.badgeConfig.colorMap[badgeText];
+            badgeStyle = `style="background-color: ${configColor}; color: white;"`;
+        }
 
         return this.html`
-            <span class="cell-badge badge-${badgeClass}">${value}</span>
+            <span class="cell-badge" ${badgeStyle}>${badgeText}</span>
         `;
     }
 
@@ -414,7 +460,7 @@ class TableComponent extends BaseComponent {
 
         return this.html`
             <div class="cell-actions">
-                ${actions.map(action => this.html`
+                ${this.trustedHtml(actions.map(action => `
                     <button 
                         class="btn-action btn-${action.type || 'default'}"
                         data-action="row-action"
@@ -424,7 +470,7 @@ class TableComponent extends BaseComponent {
                     >
                         ${action.icon || action.label}
                     </button>
-                `)}
+                `).join(''))}
             </div>
         `;
     }
@@ -571,7 +617,7 @@ class TableComponent extends BaseComponent {
                     <button class="btn-bulk btn-deselect" data-action="deselect-all">
                         Deselect All
                     </button>
-                    ${this.config.bulkActions?.map(action => this.html`
+                    ${this.trustedHtml(this.config.bulkActions?.map(action => `
                         <button 
                             class="btn-bulk btn-${action.type}"
                             data-action="bulk-action"
@@ -579,7 +625,7 @@ class TableComponent extends BaseComponent {
                         >
                             ${action.label}
                         </button>
-                    `) || ''}
+                    `).join('') || '')}
                 </div>
             </div>
         `;
@@ -593,6 +639,8 @@ class TableComponent extends BaseComponent {
             <div class="error-message" style="display: none;"></div>
         `;
     }
+
+
 
     /**
      * Bind all event listeners
@@ -653,6 +701,12 @@ class TableComponent extends BaseComponent {
         this.on('click', '[data-action="bulk-action"]', async (e) => {
             const actionType = e.target.dataset.actionType;
             await this.handleBulkAction(actionType);
+        });
+
+        // Global actions
+        this.on('click', '[data-action="global-action"]', async (e) => {
+            const actionId = e.target.dataset.actionId;
+            await this.handleGlobalAction(actionId);
         });
 
         // Controls
@@ -931,6 +985,69 @@ class TableComponent extends BaseComponent {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+    }
+
+    /**
+     * Handle global action button clicks
+     */
+    async handleGlobalAction(actionId) {
+        try {
+            const result = await this.handleAction(actionId, {});
+
+            if (result.showForm && result.form) {
+                // Use new ModalComponent for form display
+                await this.showFormModal(actionId, result.form);
+            } else if (result.success) {
+                this.log('INFO', result.message || 'Action completed successfully');
+            }
+        } catch (error) {
+            this.log('ERROR', `Global action failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Show form modal using new ModalComponent
+     */
+    async showFormModal(actionId, formSchema) {
+        if (!window.MCPModal) {
+            this.log('ERROR', 'ModalComponent not available');
+            return;
+        }
+
+        try {
+            const formFields = formSchema.fields.map(field => ({
+                key: field.key,
+                label: field.label,
+                type: field.type,
+                required: field.required,
+                options: field.options
+            }));
+
+            const result = await window.MCPModal.form({
+                title: formSchema.title || 'Form',
+                fields: formFields,
+                onSubmit: async (formData) => {
+                    try {
+                        const actionResult = await this.handleAction(actionId, formData);
+                        if (actionResult.success) {
+                            this.log('INFO', actionResult.message || 'Form submitted successfully');
+                            return { success: true };
+                        } else {
+                            throw new Error(actionResult.error || 'Form submission failed');
+                        }
+                    } catch (error) {
+                        this.log('ERROR', `Form submission failed: ${error.message}`);
+                        throw error;
+                    }
+                }
+            });
+
+            if (result.action === 'submit') {
+                this.log('INFO', 'Form submitted successfully');
+            }
+        } catch (error) {
+            this.log('ERROR', `Failed to show form modal: ${error.message}`);
         }
     }
 
