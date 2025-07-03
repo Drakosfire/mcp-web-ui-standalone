@@ -556,6 +556,10 @@ MCP.initFromSchema = function (schema, initialData = {}, globalConfig = {}) {
                     if (componentDef.title) {
                         listConfig.title = componentDef.title;
                     }
+                    // Pass schema-level actions to the list component
+                    if (schema.actions) {
+                        listConfig.actions = schema.actions;
+                    }
                     component = MCP.List(element, componentData, listConfig);
                     break;
                 case 'table':

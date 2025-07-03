@@ -140,6 +140,9 @@ class ListComponent extends BaseComponent {
             ...config.list
         };
 
+        // 2.5. Intelligent configuration enhancement based on schema fields
+        this.enhanceConfigurationFromSchema();
+
         // 3. Initialize component state
         this.listState = {
             // Display state
@@ -172,6 +175,166 @@ class ListComponent extends BaseComponent {
         this.bindEvents();
         this.startPolling();
         this.log('INFO', 'ListComponent events bound');
+    }
+
+    /**
+     * Enhance configuration based on schema field analysis
+     * This method detects common patterns and auto-configures appropriate features
+     */
+    enhanceConfigurationFromSchema() {
+        const fields = this.listConfig.fields || [];
+
+        // Detect common field patterns
+        const hasTextField = fields.some(f => f.key === 'text' || f.key === 'task' || f.key === 'title' || f.key === 'name');
+        const hasCompletedField = fields.some(f => f.key === 'completed' || f.key === 'done' || f.key === 'finished');
+        const hasPriorityField = fields.some(f => f.key === 'priority');
+        const hasCategoryField = fields.some(f => f.key === 'category' || f.key === 'type');
+        const hasDateField = fields.some(f => f.key === 'dueDate' || f.key === 'date' || f.type === 'date');
+
+        // Auto-detect data type and configure accordingly
+        if (hasTextField && (hasCompletedField || hasPriorityField)) {
+            this.log('INFO', 'Detected todo/task list pattern - auto-configuring features');
+
+            // Configure for todo/task management
+            this.listConfig.itemType = 'todo';
+            this.listConfig.itemTextField = hasTextField ? 'text' : 'task';
+
+            // Build itemFields from detected schema
+            this.listConfig.itemFields = ['text'];
+            if (hasPriorityField) this.listConfig.itemFields.push('priority');
+            if (hasCategoryField) this.listConfig.itemFields.push('category');
+            if (hasDateField) this.listConfig.itemFields.push('dueDate');
+
+            // Enable toggle if completed field exists
+            if (hasCompletedField) {
+                this.listConfig.enableToggle = {
+                    field: 'completed',
+                    label: 'Mark as complete',
+                    trueLabel: 'Completed',
+                    falseLabel: 'Pending'
+                };
+                // Add toggle to item actions if not already present
+                if (!this.listConfig.actions.item.includes('toggle')) {
+                    this.listConfig.actions.item.unshift('toggle');
+                }
+            }
+
+            // Configure forms if not already configured
+            if (!this.listConfig.forms.add.fields || this.listConfig.forms.add.fields.length === 0) {
+                this.listConfig.forms.add = {
+                    title: 'Add New Todo',
+                    fields: this.generateFormFieldsFromSchema(fields)
+                };
+            }
+
+            if (!this.listConfig.forms.edit.fields || this.listConfig.forms.edit.fields.length === 0) {
+                this.listConfig.forms.edit = {
+                    title: 'Edit Todo',
+                    fields: this.generateFormFieldsFromSchema(fields)
+                };
+            }
+
+            // Configure display
+            this.listConfig.emptyStateMessage = this.listConfig.emptyStateMessage || 'No todos yet! Add your first one to get started.';
+            this.listConfig.confirmDeletes = true;
+
+        } else if (hasTextField) {
+            // Generic list configuration
+            this.log('INFO', 'Detected generic list pattern - using basic configuration');
+            this.listConfig.itemTextField = this.detectPrimaryTextField(fields);
+
+            // Generate basic form if none provided
+            if (!this.listConfig.forms.add.fields || this.listConfig.forms.add.fields.length === 0) {
+                this.listConfig.forms.add.fields = this.generateFormFieldsFromSchema(fields);
+            }
+        }
+
+        // Ensure global actions include 'add' if CRUD is enabled
+        if (this.listConfig.enableCRUD && !this.listConfig.actions.global.includes('add')) {
+            this.listConfig.actions.global.push('add');
+        }
+    }
+
+    /**
+     * Generate form fields from schema fields for add/edit forms
+     */
+    generateFormFieldsFromSchema(schemaFields) {
+        return schemaFields
+            .filter(field => {
+                // Exclude system/read-only fields from forms
+                return !['id', 'createdAt', 'completed', 'completedAt', 'timeToComplete'].includes(field.key);
+            })
+            .map(field => {
+                const formField = {
+                    name: field.key,  // Use 'name' for ModalComponent compatibility
+                    label: field.label,
+                    type: this.getFormFieldTypeFromSchema(field),
+                    required: field.key === 'text' || field.key === 'name' || field.key === 'title',
+                    placeholder: this.getFieldPlaceholder(field)
+                };
+
+                // Add options for select fields
+                if (formField.type === 'select') {
+                    formField.options = this.getFormFieldOptionsFromSchema(field);
+                }
+
+                return formField;
+            });
+    }
+
+    /**
+     * Convert schema field type to form field type
+     */
+    getFormFieldTypeFromSchema(field) {
+        if (field.key === 'priority') return 'select';
+        if (field.key === 'text' || field.key === 'task') return 'textarea';
+        if (field.type === 'date') return 'date';
+        if (field.type === 'checkbox') return 'checkbox';
+        return 'text';
+    }
+
+    /**
+     * Get appropriate placeholder text for form fields
+     */
+    getFieldPlaceholder(field) {
+        const placeholders = {
+            'text': 'Enter your todo...',
+            'task': 'What needs to be done?',
+            'title': 'Enter title...',
+            'name': 'Enter name...',
+            'category': 'Optional category',
+            'dueDate': '',
+            'priority': ''
+        };
+        return placeholders[field.key] || `Enter ${field.label.toLowerCase()}...`;
+    }
+
+    /**
+     * Get form field options from schema
+     */
+    getFormFieldOptionsFromSchema(field) {
+        if (field.key === 'priority') {
+            return [
+                { value: 'low', label: 'Low' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'high', label: 'High' },
+                { value: 'urgent', label: 'Urgent' }
+            ];
+        }
+        return field.options || [];
+    }
+
+    /**
+     * Detect the primary text field from schema
+     */
+    detectPrimaryTextField(fields) {
+        const candidates = ['text', 'title', 'name', 'task', 'description'];
+        for (const candidate of candidates) {
+            if (fields.some(f => f.key === candidate)) {
+                return candidate;
+            }
+        }
+        return fields.length > 0 ? fields[0].key : 'text';
     }
 
     /**
@@ -317,6 +480,63 @@ class ListComponent extends BaseComponent {
                 ${this.listState.filterQuery ? this.html`
                     <button class="btn-clear-search" data-action="clear-search" title="Clear search">
                         ×
+                    </button>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    /**
+     * Render filter controls
+     */
+    renderFilters() {
+        if (!this.listConfig.filters || !this.listConfig.filters.length) {
+            return '';
+        }
+
+        return this.html`
+            <div class="filters-container">
+                ${this.trustedHtml(this.listConfig.filters.map(filter => `
+                    <div class="filter-group">
+                        <label class="filter-label">${filter.label}:</label>
+                        <select class="filter-select" data-action="filter" data-filter="${filter.key}">
+                            <option value="">All ${filter.label}</option>
+                            ${filter.options.map(option => `
+                                <option value="${option.value}" ${this.listState.filters[filter.key] === option.value ? 'selected' : ''}>
+                                    ${option.label}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                `).join(''))}
+            </div>
+        `;
+    }
+
+    /**
+     * Render sort controls
+     */
+    renderSortControls() {
+        const sortableColumns = this.getTableColumns().filter(col => col.sortable);
+
+        if (!sortableColumns.length) {
+            return '';
+        }
+
+        return this.html`
+            <div class="sort-controls">
+                <label class="sort-label">Sort by:</label>
+                <select class="sort-select" data-action="sort-select">
+                    <option value="">Default</option>
+                    ${sortableColumns.map(col => `
+                        <option value="${col.key}" ${this.listState.sortColumn === col.key ? 'selected' : ''}>
+                            ${col.label}
+                        </option>
+                    `).join('')}
+                </select>
+                ${this.listState.sortColumn ? `
+                    <button class="sort-direction-btn" data-action="toggle-sort-direction" title="Toggle sort direction">
+                        ${this.listState.sortDirection === 'asc' ? '↑' : '↓'}
                     </button>
                 ` : ''}
             </div>
@@ -664,11 +884,6 @@ class ListComponent extends BaseComponent {
     }
 
     /**
-     * Render individual form field
-     */
-
-
-    /**
      * Bind all event listeners
      */
     bindEvents() {
@@ -732,6 +947,24 @@ class ListComponent extends BaseComponent {
                 const column = e.target.dataset.column;
                 this.handleSort(column);
             });
+
+            this.on('change', '[data-action="sort-select"]', (e) => {
+                const column = e.target.value;
+                this.handleSort(column);
+            });
+
+            this.on('click', '[data-action="toggle-sort-direction"]', () => {
+                this.handleToggleSortDirection();
+            });
+        }
+
+        // Filtering
+        if (this.listConfig.enableFilters) {
+            this.on('change', '[data-action="filter"]', (e) => {
+                const filterKey = e.target.dataset.filter;
+                const filterValue = e.target.value;
+                this.handleFilter(filterKey, filterValue);
+            });
         }
     }
 
@@ -743,7 +976,13 @@ class ListComponent extends BaseComponent {
     async handleGlobalAction(action) {
         switch (action) {
             case 'add':
-                await this.showFormModal('add');
+                try {
+                    // Show form modal directly - no need to check with server first
+                    await this.showFormModal('add');
+                } catch (error) {
+                    this.log('ERROR', `Add action failed: ${error.message}`);
+                    this.handleError(error);
+                }
                 break;
             default:
                 this.log('WARN', `Unknown global action: ${action}`);
@@ -794,15 +1033,15 @@ class ListComponent extends BaseComponent {
         if (this.listConfig.confirmDeletes) {
             if (!window.MCPModal) {
                 // Fallback to native confirm if modal not available
-                const confirmMessage = `Delete "${item[this.listConfig.itemTextField]}"?`;
+                const confirmMessage = this.getDeleteConfirmMessage(item);
                 if (!confirm(confirmMessage)) return;
             } else {
                 const confirmed = await window.MCPModal.confirm({
                     title: 'Confirm Delete',
-                    message: `Delete "${item[this.listConfig.itemTextField]}"?`,
+                    message: this.getDeleteConfirmMessage(item),
                     confirmText: 'Delete',
-                    cancelText: 'Cancel',
-                    type: 'danger'
+                    cancelText: 'Cancel'
+                    // Removed invalid type: 'danger' - let MCPModal.confirm() set type: 'confirm'
                 });
 
                 if (!confirmed || confirmed.action !== 'confirm') return;
@@ -815,6 +1054,23 @@ class ListComponent extends BaseComponent {
         } catch (error) {
             this.handleError(error);
         }
+    }
+
+    /**
+     * Get delete confirmation message, using schema action config if available
+     */
+    getDeleteConfirmMessage(item) {
+        // Check if we have schema actions with a confirm message
+        const schemaActions = this.config?.actions;
+        if (schemaActions) {
+            const deleteAction = schemaActions.find(action => action.id === 'delete' || action.handler === 'delete');
+            if (deleteAction && deleteAction.confirm) {
+                return deleteAction.confirm;
+            }
+        }
+
+        // Fallback to generic message
+        return `Delete "${item[this.listConfig.itemTextField]}"?`;
     }
 
     /**
@@ -845,6 +1101,48 @@ class ListComponent extends BaseComponent {
     }
 
     /**
+     * Show form modal using server-provided form schema
+     */
+    async showServerFormModal(type, formSchema) {
+        if (!window.MCPModal) {
+            this.log('ERROR', 'ModalComponent not available');
+            return;
+        }
+
+        try {
+
+            const result = await window.MCPModal.form({
+                title: formSchema.title || (type === 'add' ? 'Add Item' : 'Edit Item'),
+                fields: formSchema.fields || [],
+                initialData: {},
+                onSubmit: async (formData) => {
+                    console.log('DEBUG: Add form submitted with data:', formData);
+                    try {
+                        // Submit to server with actual form data
+                        const actionResult = await this.handleAction(type, formData);
+
+                        if (actionResult.success) {
+                            this.log('INFO', `${type} completed successfully`);
+                            return { success: true };
+                        } else {
+                            throw new Error(actionResult.error || `${type} failed`);
+                        }
+                    } catch (error) {
+                        this.log('ERROR', `Form submission failed: ${error.message}`);
+                        throw error;
+                    }
+                }
+            });
+
+            if (result.action === 'submit') {
+                this.log('INFO', `Form ${type} completed successfully`);
+            }
+        } catch (error) {
+            this.log('ERROR', `Failed to show server form modal: ${error.message}`);
+        }
+    }
+
+    /**
      * Show form modal using new ModalComponent
      */
     async showFormModal(type, item = null) {
@@ -866,6 +1164,7 @@ class ListComponent extends BaseComponent {
                 fields: formFields,
                 initialData,
                 onSubmit: async (formData) => {
+                    console.log(`DEBUG: ${type.charAt(0).toUpperCase() + type.slice(1)} form submitted with data:`, formData);
                     try {
                         // Validate form data
                         const errors = this.validateFormData(formData);
@@ -880,6 +1179,7 @@ class ListComponent extends BaseComponent {
                             ? { ...formData, id: item.id }
                             : formData;
 
+                        console.log(`DEBUG: Calling handleAction('${action}') with payload:`, payload);
                         const actionResult = await this.handleAction(action, payload);
 
                         if (actionResult.success) {
@@ -1076,16 +1376,17 @@ class ListComponent extends BaseComponent {
                         field.key !== 'timeToComplete';
                 })
                 .map(field => ({
-                    key: field.key,
+                    name: field.key,  // Use 'name' for ModalComponent compatibility
                     label: field.label,
                     type: this.getFormFieldType(field),
                     required: field.key === 'text' || field.required,
-                    options: this.getFormFieldOptions(field)
+                    options: this.getFormFieldOptions(field),
+                    placeholder: this.getFieldPlaceholder(field)
                 }));
         } else {
             // Legacy field generation
             return this.listConfig.itemFields.map(field => ({
-                key: field,
+                name: field,  // Use 'name' for ModalComponent compatibility
                 label: field.charAt(0).toUpperCase() + field.slice(1),
                 type: 'text',
                 required: field === this.listConfig.itemTextField
@@ -1147,10 +1448,10 @@ class ListComponent extends BaseComponent {
         const fields = this.getDefaultFormFields();
 
         fields.forEach(field => {
-            const value = data[field.key];
+            const value = data[field.name];
 
             if (field.required && (!value || value.trim() === '')) {
-                errors[field.key] = `${field.label} is required`;
+                errors[field.name] = `${field.label} is required`;
             }
         });
 
@@ -1211,6 +1512,34 @@ class ListComponent extends BaseComponent {
 
     handleClearSearch() {
         this.listState.filterQuery = '';
+        this.render();
+    }
+
+    /**
+     * Handle toggle sort direction
+     */
+    handleToggleSortDirection() {
+        if (this.listState.sortColumn) {
+            this.listState.sortDirection = this.listState.sortDirection === 'asc' ? 'desc' : 'asc';
+            this.render();
+        }
+    }
+
+    /**
+     * Handle filter change
+     */
+    handleFilter(filterKey, filterValue) {
+        if (!this.listState.filters) {
+            this.listState.filters = {};
+        }
+
+        if (filterValue) {
+            this.listState.filters[filterKey] = filterValue;
+        } else {
+            delete this.listState.filters[filterKey];
+        }
+
+        this.listState.currentPage = 1; // Reset to first page
         this.render();
     }
 

@@ -133,6 +133,11 @@ class Modal {
 
         const merged = { ...defaults, ...config };
 
+        // Map initialData to formData for form pre-population
+        if (config.initialData && merged.type === 'form') {
+            merged.formData = { ...merged.formData, ...config.initialData };
+        }
+
         // Set default buttons based on type
         if (merged.buttons.length === 0) {
             switch (merged.type) {
@@ -575,7 +580,15 @@ class Modal {
                 this.hide({ action: 'cancel', confirmed: false });
                 break;
             case 'submit':
-                // Form submission is handled separately
+                // Trigger form submission when submit button is clicked
+                const form = this.element.querySelector('[data-form="modal-form"]');
+                if (form) {
+                    // Create and dispatch a submit event
+                    const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                    form.dispatchEvent(submitEvent);
+                } else {
+                    this.log('WARN', 'Submit button clicked but no form found');
+                }
                 break;
         }
     }
@@ -601,6 +614,7 @@ class Modal {
      * Handle form submission
      */
     async handleFormSubmit(event) {
+        console.log('DEBUG: Form submitted with data:', event);
         event.preventDefault();
 
         try {
@@ -619,6 +633,7 @@ class Modal {
             // Submit form
             if (this.config.onSubmit) {
                 const result = await this.config.onSubmit(data);
+                console.log('DEBUG: Form submitted with data:', data);
                 this.hide({ action: 'submit', data, result });
             } else {
                 this.hide({ action: 'submit', data });

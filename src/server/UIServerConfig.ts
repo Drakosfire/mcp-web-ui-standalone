@@ -159,6 +159,12 @@ export const DEFAULT_UI_SERVER_CONFIG: UIServerConfig = {
                     files: ['components/TableComponent.js'],
                     dependencies: ['BaseComponent'],
                     loadCondition: (schema) => schema.components.some((c: { type: string }) => c.type === 'table')
+                },
+                {
+                    name: 'StatsComponent',
+                    files: ['components/StatsComponent.js'],
+                    dependencies: ['BaseComponent'],
+                    loadCondition: (schema) => schema.components.some((c: { type: string }) => c.type === 'stats')
                 }
             ],
             enableBundling: true

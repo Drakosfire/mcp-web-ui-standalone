@@ -34,10 +34,7 @@ export class ResourceManager {
             preloadLinks: []
         };
 
-        // 1. Load base CSS (only minimal framework CSS now)
-        result.css.push('/static/styles.css');
-
-        // 2. Load theme CSS from MCP server (not framework)
+        // 1. Load theme CSS from MCP server (this includes styles.css)
         const themeCSS = this.getThemeCSS(schema);
         result.css.push(...themeCSS);
 
@@ -163,10 +160,7 @@ export class ResourceManager {
     private generatePreloadLinks(schema: UISchema): string[] {
         const preloads: string[] = [];
 
-        // Preload critical CSS
-        preloads.push('<link rel="preload" href="/static/styles.css" as="style">');
-
-        // Preload theme CSS
+        // Preload theme CSS (this includes styles.css)
         const themeCSS = this.getThemeCSS(schema);
         for (const css of themeCSS) {
             preloads.push(`<link rel="preload" href="${css}" as="style">`);
