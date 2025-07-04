@@ -2,7 +2,7 @@
  * ListComponent - Generic, Configurable List Implementation
  * 
  * This component provides a flexible list interface that can be configured for different use cases:
- * - Configurable CRUD operations (add, edit, delete, toggle states)
+ * - Configurable CRUD operations (add, edit, delete)
  * - Multiple layout modes (list, grid, table)
  * - Search and filtering capabilities
  * - Sorting and pagination
@@ -27,7 +27,6 @@
  * const todoList = new ListComponent(element, data, {
  *   list: {
  *     itemType: 'todo',
- *     enableToggle: true,
  *     itemFields: ['text', 'priority', 'category']
  *   }
  * });
@@ -36,7 +35,6 @@
  * const groceryList = new ListComponent(element, data, {
  *   list: {
  *     itemType: 'grocery',
- *     enableToggle: { field: 'purchased', label: 'Mark as purchased' },
  *     itemFields: ['name', 'quantity', 'category'],
  *     layout: 'grid'
  *   }
@@ -128,20 +126,14 @@ class ListComponent extends BaseComponent {
             gridColumns: 'auto-fit',
             gridMinWidth: '200px',
 
-            // Toggle configuration
-            toggle: {
-                field: 'completed',
-                label: 'Mark as complete',
-                trueLabel: 'Completed',
-                falseLabel: 'Pending'
-            },
+
 
             // Merge user configuration
             ...config.list
         };
 
         // 2.5. Intelligent configuration enhancement based on schema fields
-        this.enhanceConfigurationFromSchema();
+        this.enhanceConfigurationFromSchema(config);
 
         // 3. Initialize component state
         this.listState = {
@@ -180,8 +172,9 @@ class ListComponent extends BaseComponent {
     /**
      * Enhance configuration based on schema field analysis
      * This method detects common patterns and auto-configures appropriate features
+     * @param {Object} originalConfig - The original user configuration passed to constructor
      */
-    enhanceConfigurationFromSchema() {
+    enhanceConfigurationFromSchema(originalConfig) {
         const fields = this.listConfig.fields || [];
 
         // Detect common field patterns
@@ -205,19 +198,8 @@ class ListComponent extends BaseComponent {
             if (hasCategoryField) this.listConfig.itemFields.push('category');
             if (hasDateField) this.listConfig.itemFields.push('dueDate');
 
-            // Enable toggle if completed field exists
-            if (hasCompletedField) {
-                this.listConfig.enableToggle = {
-                    field: 'completed',
-                    label: 'Mark as complete',
-                    trueLabel: 'Completed',
-                    falseLabel: 'Pending'
-                };
-                // Add toggle to item actions if not already present
-                if (!this.listConfig.actions.item.includes('toggle')) {
-                    this.listConfig.actions.item.unshift('toggle');
-                }
-            }
+            // Note: Toggle functionality has been removed
+            // The completed field is now handled via checkbox display only
 
             // Configure forms if not already configured
             if (!this.listConfig.forms.add.fields || this.listConfig.forms.add.fields.length === 0) {
@@ -385,16 +367,7 @@ class ListComponent extends BaseComponent {
     renderStats(stats) {
         const statsToShow = [];
 
-        if (this.listConfig.enableToggle) {
-            const toggleField = this.getToggleField();
-            const completedCount = stats[`${toggleField}_true`] || 0;
-            const pendingCount = stats[`${toggleField}_false`] || 0;
-
-            statsToShow.push(
-                { label: this.listConfig.toggle.trueLabel || 'Complete', value: completedCount, type: 'success' },
-                { label: this.listConfig.toggle.falseLabel || 'Pending', value: pendingCount, type: 'warning' }
-            );
-        }
+        // Toggle stats removed - use checkbox-based completion tracking instead
 
         if (this.listState.selectedItems.size > 0) {
             statsToShow.push({
@@ -528,17 +501,17 @@ class ListComponent extends BaseComponent {
                 <label class="sort-label">Sort by:</label>
                 <select class="sort-select" data-action="sort-select">
                     <option value="">Default</option>
-                    ${sortableColumns.map(col => `
+                    ${this.trustedHtml(sortableColumns.map(col => `
                         <option value="${col.key}" ${this.listState.sortColumn === col.key ? 'selected' : ''}>
                             ${col.label}
                         </option>
-                    `).join('')}
+                    `).join(''))}
                 </select>
-                ${this.listState.sortColumn ? `
+                ${this.listState.sortColumn ? this.trustedHtml(`
                     <button class="sort-direction-btn" data-action="toggle-sort-direction" title="Toggle sort direction">
                         ${this.listState.sortDirection === 'asc' ? '↑' : '↓'}
                     </button>
-                ` : ''}
+                `) : ''}
             </div>
         `;
     }
@@ -665,11 +638,11 @@ class ListComponent extends BaseComponent {
     renderListItem(item) {
         const itemId = this.getItemId(item);
         const isSelected = this.listState.selectedItems.has(itemId);
-        const toggleField = this.getToggleField();
-        const isToggled = toggleField && item[toggleField];
+        const isCompleted = this.hasCompletedField(item) && item.completed;
+        const hasCompleted = this.hasCompletedField(item);
 
         return `
-            <div class="list-item ${isToggled ? 'toggled' : ''} ${isSelected ? 'selected' : ''}" 
+            <div class="list-item ${isSelected ? 'selected' : ''} ${isCompleted ? 'completed' : ''}" 
                  data-id="${itemId}">
                 <div class="item-main">
                     ${this.listConfig.enableBulkActions ? `
@@ -683,14 +656,15 @@ class ListComponent extends BaseComponent {
                         </div>
                     ` : ''}
                     
-                    ${this.listConfig.enableToggle ? `
+                    ${hasCompleted ? `
                         <div class="item-toggle">
                             <input 
                                 type="checkbox" 
+                                class="item-checkbox"
                                 data-action="toggle-item" 
                                 data-id="${itemId}"
-                                ${isToggled ? 'checked' : ''}
-                                title="${isToggled ? 'Mark as pending' : this.listConfig.toggle.label}"
+                                ${item.completed ? 'checked' : ''}
+                                title="${item.completed ? 'Mark as incomplete' : 'Mark as complete'}"
                             >
                         </div>
                     ` : ''}
@@ -763,6 +737,13 @@ class ListComponent extends BaseComponent {
     }
 
     /**
+     * Check if item has a completed field that can be toggled
+     */
+    hasCompletedField(item) {
+        return item.hasOwnProperty('completed') && typeof item.completed === 'boolean';
+    }
+
+    /**
      * Format field value based on schema field configuration
      */
     formatSchemaFieldValue(value, field) {
@@ -775,6 +756,12 @@ class ListComponent extends BaseComponent {
             } catch (error) {
                 console.warn('Field format function error:', error);
             }
+        }
+
+        // Special handling for createdAt field - always format as human-readable date
+        if (field.key === 'createdAt' && value) {
+            const formattedDate = this.formatCreatedDate(value);
+            return `<span class="date-value created-date">${formattedDate}</span>`;
         }
 
         // Apply type-specific formatting
@@ -823,18 +810,7 @@ class ListComponent extends BaseComponent {
      * Render empty state
      */
     renderEmptyState() {
-        return this.html`
-            <div class="empty-state">
-                <div class="empty-icon">📝</div>
-                <h3>No ${this.getItemLabel(0)}</h3>
-                <p>${this.listConfig.emptyStateMessage}</p>
-                ${this.listConfig.actions.global.includes('add') ? this.html`
-                    <button class="btn btn-primary" data-action="global-add">
-                        Add First ${this.getItemLabel(1)}
-                    </button>
-                ` : ''}
-            </div>
-        `;
+        return '';
     }
 
     /**
@@ -922,13 +898,12 @@ class ListComponent extends BaseComponent {
             });
         }
 
-        // Toggle
-        if (this.listConfig.enableToggle) {
-            this.on('change', '[data-action="toggle-item"]', async (e) => {
-                const id = e.target.dataset.id;
-                await this.handleToggleItem(id, e.target.checked);
-            });
-        }
+        // Toggle completion checkbox
+        this.on('change', '[data-action="toggle-item"]', (e) => {
+            const id = e.target.dataset.id;
+            const completed = e.target.checked;
+            this.handleToggleItem(id, completed);
+        });
 
         // Search
         if (this.listConfig.enableSearch) {
@@ -1024,6 +999,45 @@ class ListComponent extends BaseComponent {
     }
 
     /**
+     * Handle toggle item completion
+     */
+    async handleToggleItem(id, completed) {
+        const item = this.findItemById(id);
+        if (!item) return;
+
+        try {
+            // Update the item locally first for responsive UI
+            item.completed = completed;
+            if (completed) {
+                item.completedAt = new Date().toISOString();
+            } else {
+                delete item.completedAt;
+            }
+
+            // Update the server
+            await this.handleAction('update', {
+                id,
+                completed,
+                completedAt: completed ? item.completedAt : null
+            });
+
+            this.log('INFO', `Item ${completed ? 'completed' : 'uncompleted'}: ${id}`);
+        } catch (error) {
+            // Revert local change if server update failed
+            item.completed = !completed;
+            if (!completed) {
+                item.completedAt = new Date().toISOString();
+            } else {
+                delete item.completedAt;
+            }
+
+            // Re-render to show the reverted state
+            this.render();
+            this.handleError(error);
+        }
+    }
+
+    /**
      * Handle delete item with confirmation modal
      */
     async handleDeleteItem(id) {
@@ -1071,24 +1085,6 @@ class ListComponent extends BaseComponent {
 
         // Fallback to generic message
         return `Delete "${item[this.listConfig.itemTextField]}"?`;
-    }
-
-    /**
-     * Handle toggle item state
-     */
-    async handleToggleItem(id, checked) {
-        const toggleField = this.getToggleField();
-
-        try {
-            await this.handleAction('toggle', {
-                id,
-                field: toggleField,
-                value: checked
-            });
-            this.log('INFO', `Item ${toggleField} toggled: ${id}`);
-        } catch (error) {
-            this.handleError(error);
-        }
     }
 
     /**
@@ -1279,12 +1275,7 @@ class ListComponent extends BaseComponent {
         const items = this.data || [];
         const stats = { total: items.length };
 
-        // Toggle field statistics
-        if (this.listConfig.enableToggle) {
-            const toggleField = this.getToggleField();
-            stats[`${toggleField}_true`] = items.filter(item => item[toggleField]).length;
-            stats[`${toggleField}_false`] = items.filter(item => !item[toggleField]).length;
-        }
+        // Toggle statistics removed - using checkbox display only for completion tracking
 
         return stats;
     }
@@ -1318,12 +1309,7 @@ class ListComponent extends BaseComponent {
         return this.data.find(item => this.getItemId(item) === id);
     }
 
-    getToggleField() {
-        if (typeof this.listConfig.enableToggle === 'object') {
-            return this.listConfig.enableToggle.field;
-        }
-        return this.listConfig.toggle.field;
-    }
+
 
     getDefaultTitle() {
         return this.listConfig.itemType.charAt(0).toUpperCase() +
@@ -1438,8 +1424,49 @@ class ListComponent extends BaseComponent {
                 return `<span class="priority priority-${value}">${value}</span>`;
             case 'category':
                 return `<span class="category">${value}</span>`;
+            case 'createdAt':
+                return this.formatCreatedDate(value);
             default:
                 return String(value);
+        }
+    }
+
+    /**
+     * Format createdAt timestamp to human-readable format
+     * @param {string} dateString - ISO timestamp string
+     * @returns {string} Human-readable date string
+     */
+    formatCreatedDate(dateString) {
+        if (!dateString) return '';
+
+        try {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now.getTime() - date.getTime();
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+            // Format relative time for recent dates
+            if (diffMinutes < 1) {
+                return 'Just now';
+            } else if (diffMinutes < 60) {
+                return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+            } else if (diffHours < 24) {
+                return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+            } else if (diffDays < 7) {
+                return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+            } else {
+                // For older dates, show the actual date
+                return date.toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+        } catch (error) {
+            console.warn('Error formatting created date:', error);
+            return 'Invalid date';
         }
     }
 
