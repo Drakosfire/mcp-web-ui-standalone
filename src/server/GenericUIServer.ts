@@ -16,7 +16,7 @@
  * - Plugin architecture (extend without modifying core)
  */
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { Server } from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -26,6 +26,7 @@ import { fileURLToPath } from 'url';
 import { UIServerConfig, DEFAULT_UI_SERVER_CONFIG } from './UIServerConfig.js';
 import { ResourceManager } from './ResourceManager.js';
 import { TemplateEngine } from './TemplateEngine.js';
+import { SessionManager } from '../session/SessionManager.js';
 
 import {
     WebUISession,
@@ -39,6 +40,9 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Generic UI Server Interface
+ */
 export interface UIServerPlugin {
     name: string;
     initialize(server: GenericUIServer): Promise<void>;
@@ -66,6 +70,7 @@ export class GenericUIServer {
         private schema: UISchema,
         private dataSource: DataSourceFunction,
         private onUpdate: UpdateHandler,
+        private sessionManager: SessionManager,
         private config: UIServerConfig = DEFAULT_UI_SERVER_CONFIG,
         private pollInterval = 2000,
         private bindAddress = 'localhost'
@@ -461,8 +466,22 @@ export class GenericUIServer {
                 });
             }
 
+            // Update local session copy
             this.session.expiresAt = new Date(this.session.expiresAt.getTime() + minutes * 60 * 1000);
             this.session.lastActivity = new Date();
+
+            // CRITICAL FIX: Also update the SessionManager's authoritative copy
+            const sessionExtended = this.sessionManager.extendSession(this.session.id, minutes);
+
+            if (!sessionExtended) {
+                // If SessionManager couldn't extend, revert local changes
+                this.session.expiresAt = new Date(this.session.expiresAt.getTime() - minutes * 60 * 1000);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to extend session in session manager',
+                    timestamp: new Date().toISOString()
+                });
+            }
 
             const response: APIResponse = {
                 success: true,

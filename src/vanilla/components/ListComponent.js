@@ -78,6 +78,17 @@ class ListComponent extends BaseComponent {
             layout: 'list', // 'list', 'grid', 'table'
             itemsPerPage: 20,
 
+            // Multi-section configuration
+            mode: 'single', // 'single' | 'multi'
+            groupBy: null, // Field name to group by (e.g., 'completed')
+            sections: {}, // Section configuration for simple groupBy mode
+            advancedSections: [], // Advanced section configuration with filter functions
+            sectionTransitions: {
+                enabled: true,
+                duration: 300,
+                easing: 'ease-in-out'
+            },
+
             // Feature flags
             enableCRUD: true,
             enableSearch: false,
@@ -135,6 +146,9 @@ class ListComponent extends BaseComponent {
         // 2.5. Intelligent configuration enhancement based on schema fields
         this.enhanceConfigurationFromSchema(config);
 
+        // 2.6. Validate multi-section configuration
+        this.validateMultiSectionConfig();
+
         // 3. Initialize component state
         this.listState = {
             // Display state
@@ -148,7 +162,12 @@ class ListComponent extends BaseComponent {
             // Interaction state
             isEditing: null,
             editingData: {},
-            showBulkActions: false
+            showBulkActions: false,
+
+            // Multi-section state
+            sectionStates: new Map(), // section id -> { collapsed: boolean }
+            itemTransitions: new Map(), // item id -> { from: section, to: section, startTime: timestamp }
+            sectionsData: new Map() // section id -> filtered items array
         };
 
         // 4. Re-render manually AFTER properties are set
@@ -320,13 +339,62 @@ class ListComponent extends BaseComponent {
     }
 
     /**
+     * Validate multi-section configuration
+     * Ensures that multi-section mode has proper configuration
+     */
+    validateMultiSectionConfig() {
+        const errors = [];
+
+        if (this.listConfig.mode === 'multi') {
+            // Must have either groupBy or advancedSections
+            if (!this.listConfig.groupBy && (!this.listConfig.advancedSections || this.listConfig.advancedSections.length === 0)) {
+                errors.push('Multi mode requires either groupBy or advancedSections');
+            }
+
+            // If using groupBy, must have sections configuration
+            if (this.listConfig.groupBy && (!this.listConfig.sections || Object.keys(this.listConfig.sections).length === 0)) {
+                errors.push('groupBy mode requires sections configuration');
+            }
+
+            // If using advancedSections, validate section structure
+            if (this.listConfig.advancedSections && this.listConfig.advancedSections.length > 0) {
+                this.listConfig.advancedSections.forEach((section, index) => {
+                    if (!section.id) {
+                        errors.push(`Advanced section ${index} missing required 'id' property`);
+                    }
+                    if (!section.name) {
+                        errors.push(`Advanced section ${index} missing required 'name' property`);
+                    }
+                    if (!section.filter || typeof section.filter !== 'function') {
+                        errors.push(`Advanced section ${index} missing required 'filter' function`);
+                    }
+                });
+            }
+        }
+
+        if (errors.length > 0) {
+            this.log('WARN', `Multi-section configuration errors: ${errors.join(', ')}`);
+            // Fallback to single mode on configuration errors
+            this.listConfig.mode = 'single';
+            this.log('INFO', 'Falling back to single mode due to configuration errors');
+        }
+    }
+
+    /**
      * Main render method
      */
     render() {
         if (this.isDestroyed) return;
 
+        // Update sections data if in multi-section mode
+        if (this.listConfig.mode === 'multi') {
+            this.updateSectionsData();
+        }
+
+        const modeClass = this.listConfig.mode === 'multi' ? 'multi-section' : 'single-section';
+
         this.element.innerHTML = this.html`
-            <div class="component component-list component-${this.listConfig.layout}">
+            <div class="component component-list component-${this.listConfig.layout} ${modeClass}">
                 ${this.trustedHtml(this.renderHeader())}
                 ${this.trustedHtml(this.renderToolbar())}
                 ${this.trustedHtml(this.renderContent())}
@@ -517,9 +585,15 @@ class ListComponent extends BaseComponent {
     }
 
     /**
-     * Render content based on layout
+     * Render content based on layout and mode
      */
     renderContent() {
+        // Handle multi-section mode
+        if (this.listConfig.mode === 'multi') {
+            return this.renderMultiSections();
+        }
+
+        // Handle single-section mode (existing behavior)
         const processedItems = this.getProcessedItems();
 
         if (processedItems.length === 0) {
@@ -529,6 +603,137 @@ class ListComponent extends BaseComponent {
         return this.html`
             <div class="list-content">
                 ${this.trustedHtml(this.renderItems(processedItems))}
+            </div>
+        `;
+    }
+
+    /**
+     * Update sections data by organizing items into sections
+     */
+    updateSectionsData() {
+        this.listState.sectionsData.clear();
+
+        if (this.listConfig.groupBy) {
+            // Simple groupBy mode
+            const sections = Object.keys(this.listConfig.sections);
+
+            sections.forEach(sectionKey => {
+                const sectionItems = this.data.filter(item => {
+                    const itemValue = item[this.listConfig.groupBy];
+                    // Handle boolean values specially
+                    if (typeof itemValue === 'boolean') {
+                        return String(itemValue) === sectionKey;
+                    }
+                    return itemValue === sectionKey;
+                });
+
+                this.listState.sectionsData.set(sectionKey, sectionItems);
+            });
+        } else if (this.listConfig.advancedSections.length > 0) {
+            // Advanced sections mode
+            this.listConfig.advancedSections.forEach(section => {
+                const sectionItems = this.data.filter(section.filter);
+                this.listState.sectionsData.set(section.id, sectionItems);
+            });
+        }
+    }
+
+    /**
+     * Render multi-section layout
+     */
+    renderMultiSections() {
+        const sections = this.getSectionConfigs();
+
+        if (sections.length === 0) {
+            return this.renderEmptyState();
+        }
+
+        return this.html`
+            <div class="list-content multi-sections">
+                ${this.trustedHtml(sections.map(section => this.renderSection(section)).join(''))}
+            </div>
+        `;
+    }
+
+    /**
+     * Get section configurations in display order
+     */
+    getSectionConfigs() {
+        if (this.listConfig.groupBy) {
+            // Simple groupBy mode
+            return Object.entries(this.listConfig.sections)
+                .map(([key, config]) => ({
+                    id: key,
+                    ...config
+                }))
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        } else if (this.listConfig.advancedSections.length > 0) {
+            // Advanced sections mode
+            return [...this.listConfig.advancedSections]
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        }
+        return [];
+    }
+
+    /**
+     * Render a single section
+     */
+    renderSection(section) {
+        const sectionItems = this.listState.sectionsData.get(section.id) || [];
+        const isCollapsed = this.listState.sectionStates.get(section.id)?.collapsed || false;
+
+        return this.html`
+            <div class="list-section" data-section="${section.id}">
+                ${this.trustedHtml(this.renderSectionHeader(section, sectionItems))}
+                ${!isCollapsed ? this.trustedHtml(this.renderSectionContent(section, sectionItems)) : ''}
+            </div>
+        `;
+    }
+
+    /**
+     * Render section header
+     */
+    renderSectionHeader(section, items) {
+        const itemCount = items.length;
+        const isCollapsed = this.listState.sectionStates.get(section.id)?.collapsed || false;
+
+        return this.html`
+            <div class="section-header" data-section="${section.id}">
+                <div class="section-title">
+                    ${section.icon ? this.trustedHtml(`<span class="section-icon">${section.icon}</span>`) : ''}
+                    <h3 class="section-name">${section.name}</h3>
+                    <span class="section-count">(${itemCount})</span>
+                </div>
+                ${section.collapsible ? this.trustedHtml(`
+                    <button class="section-toggle" 
+                            data-action="toggle-section" 
+                            data-section="${section.id}"
+                            aria-expanded="${!isCollapsed}"
+                            title="${isCollapsed ? 'Expand section' : 'Collapse section'}">
+                        ${isCollapsed ? '▶' : '▼'}
+                    </button>
+                `) : ''}
+            </div>
+        `;
+    }
+
+    /**
+     * Render section content
+     */
+    renderSectionContent(section, items) {
+        if (items.length === 0) {
+            return this.html`
+                <div class="section-content empty">
+                    <div class="section-empty-state">
+                        <p>No items in this section</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        return this.html`
+            <div class="section-content">
+                ${this.trustedHtml(this.renderItems(items))}
             </div>
         `;
     }
@@ -941,6 +1146,14 @@ class ListComponent extends BaseComponent {
                 this.handleFilter(filterKey, filterValue);
             });
         }
+
+        // Section toggles (for multi-section mode)
+        if (this.listConfig.mode === 'multi') {
+            this.on('click', '[data-action="toggle-section"]', (e) => {
+                const sectionId = e.target.dataset.section;
+                this.handleToggleSection(sectionId);
+            });
+        }
     }
 
     // Action Handlers
@@ -1014,14 +1227,17 @@ class ListComponent extends BaseComponent {
                 delete item.completedAt;
             }
 
-            // Update the server
-            await this.handleAction('update', {
+            // Update the server - use 'toggle-item' action to match backend handler
+            await this.handleAction('toggle-item', {
                 id,
                 completed,
                 completedAt: completed ? item.completedAt : null
             });
 
             this.log('INFO', `Item ${completed ? 'completed' : 'uncompleted'}: ${id}`);
+
+            // Re-render to apply sorting and move completed items to bottom
+            this.render();
         } catch (error) {
             // Revert local change if server update failed
             item.completed = !completed;
@@ -1337,12 +1553,31 @@ class ListComponent extends BaseComponent {
             return this.listConfig.columns;
         }
 
-        // Auto-generate from itemFields
-        return this.listConfig.itemFields.map(field => ({
-            key: field,
-            label: field.charAt(0).toUpperCase() + field.slice(1),
-            sortable: true
-        }));
+        // Use schema fields if available, fallback to legacy itemFields
+        const schemaFields = this.listConfig.fields || [];
+        const hasSchemaFields = schemaFields.length > 0;
+
+        if (hasSchemaFields) {
+            // Use detailed field configuration for better sorting options
+            return schemaFields
+                .filter(field => {
+                    // Exclude non-sortable system fields
+                    return field.key !== 'id' && field.key !== 'completedAt' && field.key !== 'timeToComplete';
+                })
+                .map(field => ({
+                    key: field.key,
+                    label: field.label || field.key.charAt(0).toUpperCase() + field.key.slice(1),
+                    sortable: field.sortable !== false, // Default to sortable unless explicitly disabled
+                    type: field.type
+                }));
+        } else {
+            // Auto-generate from itemFields (legacy fallback)
+            return this.listConfig.itemFields.map(field => ({
+                key: field,
+                label: field.charAt(0).toUpperCase() + field.slice(1),
+                sortable: true
+            }));
+        }
     }
 
     getDefaultFormFields() {
@@ -1567,6 +1802,19 @@ class ListComponent extends BaseComponent {
         }
 
         this.listState.currentPage = 1; // Reset to first page
+        this.render();
+    }
+
+    /**
+     * Handle section toggle (collapse/expand)
+     */
+    handleToggleSection(sectionId) {
+        const currentState = this.listState.sectionStates.get(sectionId) || { collapsed: false };
+        const newState = { ...currentState, collapsed: !currentState.collapsed };
+
+        this.listState.sectionStates.set(sectionId, newState);
+
+        this.log('INFO', `Section ${sectionId} ${newState.collapsed ? 'collapsed' : 'expanded'}`);
         this.render();
     }
 

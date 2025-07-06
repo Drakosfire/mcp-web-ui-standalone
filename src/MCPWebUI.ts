@@ -98,6 +98,7 @@ export class MCPWebUI<T = any> {
                 this.config.schema,
                 this.config.dataSource,
                 this.config.onUpdate,
+                this.sessionManager,
                 uiConfig,
                 this.config.pollInterval,
                 this.config.bindAddress

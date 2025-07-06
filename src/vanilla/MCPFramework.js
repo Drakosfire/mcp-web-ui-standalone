@@ -814,6 +814,9 @@ MCP.events = new MCP.utils.EventEmitter();
  * Helper functions for working with MCP sessions
  */
 
+// Global variable to store the current expiration timer
+let expirationTimer = null;
+
 /**
  * Update session expiration time display
  * @param {string} expiresAt - ISO date string
@@ -821,6 +824,12 @@ MCP.events = new MCP.utils.EventEmitter();
 MCP.updateExpirationTime = function (expiresAt) {
     const element = document.getElementById('expire-time');
     if (!element) return;
+
+    // CRITICAL FIX: Clear any existing timer before creating a new one
+    if (expirationTimer) {
+        clearInterval(expirationTimer);
+        expirationTimer = null;
+    }
 
     const updateTime = () => {
         const now = new Date();
@@ -830,6 +839,11 @@ MCP.updateExpirationTime = function (expiresAt) {
         if (diff <= 0) {
             element.textContent = 'Expired';
             element.className = 'expired';
+            // Clear the timer when session expires
+            if (expirationTimer) {
+                clearInterval(expirationTimer);
+                expirationTimer = null;
+            }
             return;
         }
 
@@ -850,8 +864,11 @@ MCP.updateExpirationTime = function (expiresAt) {
         }
     };
 
+    // Run immediately
     updateTime();
-    setInterval(updateTime, 1000);
+
+    // Start new timer and store the ID
+    expirationTimer = setInterval(updateTime, 1000);
 };
 
 /**
@@ -860,15 +877,22 @@ MCP.updateExpirationTime = function (expiresAt) {
  * @param {string} sessionToken - Session token
  */
 MCP.extendSession = async function (minutes = 30, sessionToken = '') {
+
     try {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // Add token to Authorization header if provided
+        if (sessionToken) {
+            headers['Authorization'] = `Bearer ${sessionToken}`;
+        }
+
         const response = await fetch('/api/extend-session', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({
-                minutes,
-                token: sessionToken
+                minutes
             })
         });
 

@@ -11,6 +11,9 @@
 8. [Animations & Transitions](#animations--transitions)
 9. [Accessibility](#accessibility)
 10. [Best Practices](#best-practices)
+11. [Dark Mode Support](#dark-mode-support)
+12. [Common Troubleshooting](#common-troubleshooting)
+13. [Testing Checklist](#testing-checklist)
 
 ## Design Philosophy
 
@@ -197,6 +200,100 @@
     padding: var(--space-6) var(--space-8);
     border-top: 1px solid var(--gray-100);
     background: var(--gray-50);
+}
+```
+
+### Critical CSS Dependencies
+When using framework components, ensure all required CSS files are loaded:
+
+```html
+<!-- Always include base component CSS -->
+<link rel="stylesheet" href="path/to/ListComponent.css">
+<link rel="stylesheet" href="path/to/ModalComponent.css">
+<!-- Then add your custom styles -->
+<link rel="stylesheet" href="your-custom-styles.css">
+```
+
+**Common Issue**: Missing `ListComponent.css` breaks section header layouts. Always verify framework CSS is loaded before custom styles.
+
+### Multi-Section List Headers
+For lists with multiple sections (e.g., todo/completed, shopping/purchased):
+
+```css
+/* Section header base - ensures single row layout */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    margin-bottom: var(--space-3);
+    transition: all var(--duration-normal) var(--easing-standard);
+}
+
+/* Section title container - icon + title + count in single row */
+.section-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--space-2) !important;
+    flex: 1 !important;
+}
+
+/* Section elements */
+.section-icon {
+    font-size: 1.25rem;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+    flex-shrink: 0;
+}
+
+.section-name {
+    margin: 0 !important;
+    font-size: var(--text-lg) !important;
+    font-weight: var(--font-semibold) !important;
+    color: var(--gray-700) !important;
+    flex-shrink: 0;
+}
+
+.section-count {
+    color: var(--gray-500) !important;
+    font-size: var(--text-sm) !important;
+    font-weight: var(--font-medium) !important;
+    background: var(--gray-100) !important;
+    padding: var(--space-1) var(--space-2) !important;
+    border-radius: 12px !important;
+    margin-left: 0 !important;
+    flex-shrink: 0;
+    transition: all var(--duration-normal) var(--easing-standard);
+}
+
+/* Section-specific theming */
+.list-section[data-section="false"] .section-header {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border-color: #bfdbfe;
+}
+
+.list-section[data-section="true"] .section-header {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border-color: #bbf7d0;
+}
+```
+
+### CSS Override Strategy
+When overriding framework styles, use targeted specificity:
+
+```css
+/* Use !important strategically for layout-critical properties */
+.section-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--space-2) !important;
+}
+
+/* Prefer specificity over !important when possible */
+.list-section[data-section="false"] .section-icon {
+    color: #1d4ed8;
 }
 ```
 
@@ -465,6 +562,43 @@
 3. **Component-based** architecture with clear naming
 4. **Logical property order**: positioning, box model, typography, visual, misc
 
+### CSS Dependencies & Loading Order
+1. **Always load framework CSS first** before custom styles
+2. **Check for missing dependencies** when layouts break unexpectedly
+3. **Use browser dev tools** to verify CSS files are loading correctly
+4. **Document CSS dependencies** in your project README
+
+```html
+<!-- Correct order -->
+<link rel="stylesheet" href="framework/ListComponent.css">
+<link rel="stylesheet" href="framework/ModalComponent.css">
+<link rel="stylesheet" href="custom/your-styles.css">
+```
+
+### Section Header Design Patterns
+1. **Single-row layout**: Use flexbox with `align-items: center` for icon + title + count
+2. **Responsive gaps**: Use CSS custom properties for consistent spacing
+3. **Visual hierarchy**: Differentiate sections with subtle color variations
+4. **Hover feedback**: Add smooth transitions for interactive elements
+
+```css
+/* Mobile-responsive section headers */
+@media (max-width: 768px) {
+    .section-title {
+        gap: var(--space-1) !important;
+    }
+    
+    .section-icon {
+        font-size: 1.1rem !important;
+    }
+    
+    .section-count {
+        font-size: var(--text-xs) !important;
+        padding: 2px var(--space-1) !important;
+    }
+}
+```
+
 ### Performance
 1. **Minimize CSS bundle size** through efficient selectors
 2. **Use `transform` and `opacity`** for animations
@@ -489,6 +623,12 @@
 3. **Meaningful comments** for complex calculations
 4. **Vendor prefixes** only when necessary
 
+### CSS Override Guidelines
+1. **Use `!important` sparingly** - only for layout-critical properties
+2. **Prefer specificity** over `!important` when possible
+3. **Document overrides** with comments explaining why they're necessary
+4. **Test overrides** across different screen sizes and browsers
+
 ## Dark Mode Support
 
 ```css
@@ -502,15 +642,104 @@
 }
 ```
 
+## Common Troubleshooting
+
+### Broken Section Headers
+**Symptoms**: Icon, title, and count appear stacked vertically instead of in a single row
+
+**Diagnosis Steps**:
+1. Check if `ListComponent.css` is loaded in Network tab
+2. Verify CSS loading order in HTML head
+3. Check for JavaScript errors preventing CSS application
+4. Inspect computed styles in browser dev tools
+
+**Solutions**:
+```html
+<!-- Add missing framework CSS -->
+<link rel="stylesheet" href="path/to/ListComponent.css">
+
+<!-- Or add CSS override -->
+<style>
+.section-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--space-2) !important;
+}
+</style>
+```
+
+### CSS Not Loading
+**Symptoms**: Styles appear broken or use browser defaults
+
+**Diagnosis Steps**:
+1. Check Network tab for 404 errors on CSS files
+2. Verify file paths are correct (relative vs absolute)
+3. Check for CORS issues in browser console
+4. Ensure CSS files exist in the expected locations
+
+**Solutions**:
+```html
+<!-- Fix relative paths -->
+<link rel="stylesheet" href="../../../../../framework/ListComponent.css">
+
+<!-- Or use absolute paths -->
+<link rel="stylesheet" href="/static/css/ListComponent.css">
+```
+
+### Mobile Layout Issues
+**Symptoms**: Section headers too cramped or overlapping on mobile
+
+**Diagnosis Steps**:
+1. Test on various screen sizes using browser dev tools
+2. Check if responsive CSS is being applied
+3. Verify breakpoint values match your design system
+4. Test touch targets meet 44px minimum
+
+**Solutions**:
+```css
+@media (max-width: 768px) {
+    .section-title {
+        gap: var(--space-1) !important;
+    }
+    
+    .section-count {
+        font-size: var(--text-xs) !important;
+        padding: 2px var(--space-1) !important;
+    }
+}
+```
+
 ## Testing Checklist
 
+### Visual & Layout Testing
 - [ ] Cross-browser compatibility (Chrome, Firefox, Safari, Edge)
 - [ ] Mobile responsiveness on various screen sizes
+- [ ] Section headers display correctly (icon + title + count in single row)
+- [ ] CSS dependencies are loading in correct order
+- [ ] Framework CSS files are present and loading before custom styles
+- [ ] Hover states and transitions work smoothly
+- [ ] Multi-section lists render with proper color differentiation
+
+### Accessibility & Usability
 - [ ] Keyboard navigation functionality
 - [ ] Screen reader compatibility
-- [ ] Color contrast compliance
+- [ ] Color contrast compliance (4.5:1 minimum)
+- [ ] Touch targets are minimum 44px
+- [ ] Focus indicators are visible and clear
+
+### Performance & Technical
+- [ ] CSS bundle size is optimized
+- [ ] No console errors related to missing CSS files
+- [ ] Animations don't cause layout thrashing
 - [ ] Performance impact assessment
 - [ ] Print styles (if applicable)
+
+### Common Issues to Check
+- [ ] Missing `ListComponent.css` causing broken section headers
+- [ ] `!important` overrides working correctly across screen sizes
+- [ ] Section counts updating dynamically
+- [ ] Gradient backgrounds displaying properly
+- [ ] Responsive breakpoints functioning as expected
 
 ---
 
