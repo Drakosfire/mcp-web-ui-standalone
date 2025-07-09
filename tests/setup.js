@@ -1,124 +1,224 @@
 /**
- * Jest setup file for MCP Web UI vanilla JavaScript components
- * This file is run before each test suite
+ * Jest Test Setup
+ * Configures the testing environment for MCP Web UI components
  */
 
-// Mock fetch globally
-global.fetch = jest.fn();
+// Configure Jest timeout
+jest.setTimeout(10000);
 
-// Mock window.requestAnimationFrame
-global.requestAnimationFrame = jest.fn(cb => setTimeout(cb, 16));
-global.cancelAnimationFrame = jest.fn(id => clearTimeout(id));
-
-// Mock window.performance
-global.performance = global.performance || {};
-global.performance.now = global.performance.now || jest.fn(() => Date.now());
-global.performance.mark = global.performance.mark || jest.fn();
-global.performance.measure = global.performance.measure || jest.fn();
+// Fix TextEncoder/TextDecoder for JSDOM
+const { TextEncoder, TextDecoder } = require('util');
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
 
 // Mock console methods to reduce noise in tests
 global.console = {
     ...console,
     log: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
     warn: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn()
+    error: jest.fn()
 };
 
-// Helper function to create DOM elements for testing
-global.createTestElement = (tagName = 'div', attributes = {}) => {
-    const element = document.createElement(tagName);
-    Object.entries(attributes).forEach(([key, value]) => {
-        element.setAttribute(key, value);
-    });
-    document.body.appendChild(element);
-    return element;
-};
-
-// Helper function to clean up DOM after tests
-global.cleanupDOM = () => {
-    document.body.innerHTML = '';
-};
-
-// Helper function to wait for next tick
-global.nextTick = () => new Promise(resolve => setTimeout(resolve, 0));
-
-// Helper function to wait for animation frame
-global.waitForAnimationFrame = () => new Promise(resolve => {
-    requestAnimationFrame(resolve);
+// Mock window methods that might be called by components
+Object.defineProperty(window, 'localStorage', {
+    value: {
+        getItem: jest.fn(),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+        clear: jest.fn()
+    }
 });
 
-// Mock data generators for testing
-global.generateMockMetrics = (count = 3) => {
-    const metrics = [];
-    for (let i = 0; i < count; i++) {
-        metrics.push({
-            key: `metric${i}`,
-            label: `Metric ${i + 1}`,
-            value: Math.floor(Math.random() * 100),
-            icon: '📊',
-            trend: ['up', 'down', 'neutral'][Math.floor(Math.random() * 3)]
-        });
+Object.defineProperty(window, 'sessionStorage', {
+    value: {
+        getItem: jest.fn(),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+        clear: jest.fn()
     }
-    return metrics;
+});
+
+// Mock fetch for API calls
+global.fetch = jest.fn(() =>
+    Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+            success: true,
+            data: []
+        })
+    })
+);
+
+// Mock intersection observer
+global.IntersectionObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    unobserve: jest.fn(),
+    disconnect: jest.fn()
+}));
+
+// Mock resize observer
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    unobserve: jest.fn(),
+    disconnect: jest.fn()
+}));
+
+// Mock requestAnimationFrame
+global.requestAnimationFrame = jest.fn((cb) => setTimeout(cb, 16));
+global.cancelAnimationFrame = jest.fn((id) => clearTimeout(id));
+
+// Mock performance API
+global.performance = {
+    now: jest.fn(() => Date.now()),
+    mark: jest.fn(),
+    measure: jest.fn(),
+    getEntriesByName: jest.fn(() => []),
+    getEntriesByType: jest.fn(() => [])
 };
 
-global.generateMockSchedule = (type = 'daily') => {
-    const schedules = {
-        daily: {
-            type: 'daily',
-            time: '09:00',
-            weekdaysOnly: true,
-            nextRun: new Date(Date.now() + 86400000).toISOString(),
-            enabled: true
-        },
-        once: {
-            type: 'once',
-            delayMinutes: 30,
-            nextRun: new Date(Date.now() + 1800000).toISOString(),
-            enabled: true
-        },
-        weekly: {
-            type: 'weekly',
-            time: '14:00',
-            weekdays: [1, 3, 5],
-            nextRun: new Date(Date.now() + 172800000).toISOString(),
-            enabled: true
+// Add custom matchers for better test assertions
+expect.extend({
+    toHaveClass(received, className) {
+        const pass = received.classList.contains(className);
+        if (pass) {
+            return {
+                message: () => `expected element not to have class "${className}"`,
+                pass: true
+            };
+        } else {
+            return {
+                message: () => `expected element to have class "${className}"`,
+                pass: false
+            };
         }
-    };
-    return schedules[type] || schedules.daily;
+    },
+
+    toBeVisible(received) {
+        const pass = received.style.display !== 'none' &&
+            received.style.visibility !== 'hidden' &&
+            received.offsetParent !== null;
+        if (pass) {
+            return {
+                message: () => `expected element not to be visible`,
+                pass: true
+            };
+        } else {
+            return {
+                message: () => `expected element to be visible`,
+                pass: false
+            };
+        }
+    },
+
+    toHaveTextContent(received, text) {
+        const pass = received.textContent.includes(text);
+        if (pass) {
+            return {
+                message: () => `expected element not to have text content "${text}"`,
+                pass: true
+            };
+        } else {
+            return {
+                message: () => `expected element to have text content "${text}", but got "${received.textContent}"`,
+                pass: false
+            };
+        }
+    }
+});
+
+// Helper function to wait for DOM updates
+global.waitFor = (callback, timeout = 5000) => {
+    return new Promise((resolve, reject) => {
+        const startTime = Date.now();
+
+        const check = () => {
+            try {
+                const result = callback();
+                if (result) {
+                    resolve(result);
+                } else if (Date.now() - startTime > timeout) {
+                    reject(new Error(`Timeout waiting for condition`));
+                } else {
+                    setTimeout(check, 10);
+                }
+            } catch (error) {
+                if (Date.now() - startTime > timeout) {
+                    reject(error);
+                } else {
+                    setTimeout(check, 10);
+                }
+            }
+        };
+
+        check();
+    });
 };
 
-global.generateMockStatus = (status = 'active') => {
-    return {
-        status,
-        progress: Math.floor(Math.random() * 100),
-        description: `This is a ${status} status`,
-        timestamp: new Date().toISOString()
-    };
+// Helper function to simulate user events
+global.fireEvent = {
+    click: (element) => {
+        const event = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true
+        });
+        element.dispatchEvent(event);
+    },
+
+    change: (element, value) => {
+        if (element.type === 'checkbox') {
+            element.checked = value;
+        } else {
+            element.value = value;
+        }
+        const event = new Event('change', {
+            bubbles: true,
+            cancelable: true
+        });
+        element.dispatchEvent(event);
+    },
+
+    input: (element, value) => {
+        element.value = value;
+        const event = new Event('input', {
+            bubbles: true,
+            cancelable: true
+        });
+        element.dispatchEvent(event);
+    }
 };
 
-// Setup and teardown helpers
-beforeEach(() => {
-    // Clear DOM before each test
-    cleanupDOM();
-
+// Clean up after each test
+afterEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
 
+    // Clear the DOM
+    document.body.innerHTML = '';
+
     // Reset fetch mock
     fetch.mockClear();
-
-    // Reset performance mock
-    if (performance.now.mockReturnValue) {
-        performance.now.mockReturnValue(Date.now());
-    }
 });
 
-afterEach(() => {
-    // Clean up DOM after each test
-    cleanupDOM();
+// Global test data factories
+global.createTodoItem = (overrides = {}) => {
+    return {
+        id: Math.floor(Math.random() * 1000),
+        text: 'Test todo item',
+        completed: false,
+        priority: 'medium',
+        ...overrides
+    };
+};
 
-    // Clear any running timers
-    jest.clearAllTimers();
-}); 
+global.createMultipleItems = (count = 5) => {
+    return Array.from({ length: count }, (_, i) => createTodoItem({
+        id: i + 1,
+        text: `Todo item ${i + 1}`,
+        completed: i % 2 === 0
+    }));
+};
+
+console.log('Test setup complete ✓'); 

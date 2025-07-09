@@ -1,0 +1,51 @@
+{
+    "name": "mcp-web-ui-tests",
+    "version": "1.0.0",
+    "description": "Test suite for MCP Web UI components",
+    "main": "index.js",
+    "scripts": {
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage",
+        "test:list": "jest --testNamePattern=ListComponent",
+        "test:multi": "jest --testNamePattern=\"Multi Section\"",
+        "test:verbose": "jest --verbose"
+    },
+    "keywords": [
+        "mcp",
+        "web-ui",
+        "components",
+        "testing"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "jest": "^29.7.0",
+        "jest-environment-jsdom": "^29.7.0",
+        "jsdom": "^22.1.0"
+    },
+    "jest": {
+        "testEnvironment": "jsdom",
+        "setupFilesAfterEnv": [
+            "<rootDir>/setup.js"
+        ],
+        "testMatch": [
+            "**/__tests__/**/*.js",
+            "**/?(*.)+(spec|test).js"
+        ],
+        "collectCoverageFrom": [
+            "../src/**/*.js",
+            "!../src/**/*.test.js"
+        ],
+        "coverageDirectory": "coverage",
+        "coverageReporters": [
+            "text",
+            "lcov",
+            "html"
+        ],
+        "verbose": true,
+        "testEnvironmentOptions": {
+            "url": "http://localhost"
+        }
+    }
+}

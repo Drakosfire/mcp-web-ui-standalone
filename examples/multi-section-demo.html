@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ListComponent Multi-Section Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .demo-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .demo-title {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .demo-controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .demo-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .demo-button:hover {
+            background: #2563eb;
+        }
+
+        .demo-button.secondary {
+            background: #64748b;
+        }
+
+        .demo-button.secondary:hover {
+            background: #475569;
+        }
+
+        .list-container {
+            min-height: 200px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="demo-container">
+        <h1>ListComponent Multi-Section Demo</h1>
+
+        <div class="demo-section">
+            <h2 class="demo-title">Simple Multi-Section (Todo/Completed)</h2>
+            <div class="demo-controls">
+                <button class="demo-button" onclick="addTodoItem()">Add Todo</button>
+                <button class="demo-button secondary" onclick="addCompletedItem()">Add Completed</button>
+                <button class="demo-button secondary" onclick="clearAllItems()">Clear All</button>
+            </div>
+            <div class="list-container" id="simple-multi-list"></div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">Advanced Multi-Section (Priority-Based)</h2>
+            <div class="demo-controls">
+                <button class="demo-button" onclick="addHighPriorityItem()">Add High Priority</button>
+                <button class="demo-button" onclick="addMediumPriorityItem()">Add Medium Priority</button>
+                <button class="demo-button" onclick="addLowPriorityItem()">Add Low Priority</button>
+                <button class="demo-button secondary" onclick="clearAdvancedItems()">Clear All</button>
+            </div>
+            <div class="list-container" id="advanced-multi-list"></div>
+        </div>
+
+        <div class="demo-grid">
+            <div class="demo-section">
+                <h2 class="demo-title">Single Section (For Comparison)</h2>
+                <div class="demo-controls">
+                    <button class="demo-button" onclick="addSingleItem()">Add Item</button>
+                    <button class="demo-button secondary" onclick="clearSingleItems()">Clear All</button>
+                </div>
+                <div class="list-container" id="single-list"></div>
+            </div>
+
+            <div class="demo-section">
+                <h2 class="demo-title">Status-Based Sections</h2>
+                <div class="demo-controls">
+                    <button class="demo-button" onclick="addTaskByStatus('todo')">Add Todo</button>
+                    <button class="demo-button" onclick="addTaskByStatus('in-progress')">Add In Progress</button>
+                    <button class="demo-button" onclick="addTaskByStatus('done')">Add Done</button>
+                    <button class="demo-button secondary" onclick="clearStatusItems()">Clear All</button>
+                </div>
+                <div class="list-container" id="status-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Components -->
+    <script src="../src/vanilla/core/BaseComponent.js"></script>
+    <script src="../src/vanilla/components/ListComponent.js"></script>
+
+    <!-- Load CSS -->
+    <link rel="stylesheet" href="../src/vanilla/components/ListComponent.css">
+
+    <script>
+        // Sample data
+        let todoData = [
+            { id: 1, text: 'Buy groceries', completed: false, priority: 'medium' },
+            { id: 2, text: 'Walk the dog', completed: true, priority: 'low' },
+            { id: 3, text: 'Finish project', completed: false, priority: 'high' },
+            { id: 4, text: 'Call dentist', completed: true, priority: 'medium' },
+            { id: 5, text: 'Read book', completed: false, priority: 'low' }
+        ];
+
+        let advancedData = [
+            { id: 1, text: 'Critical bug fix', completed: false, priority: 'high' },
+            { id: 2, text: 'Update documentation', completed: false, priority: 'medium' },
+            { id: 3, text: 'Code review', completed: true, priority: 'high' },
+            { id: 4, text: 'Team meeting', completed: false, priority: 'low' }
+        ];
+
+        let singleData = [
+            { id: 1, text: 'Task 1', completed: false },
+            { id: 2, text: 'Task 2', completed: true },
+            { id: 3, text: 'Task 3', completed: false }
+        ];
+
+        let statusData = [
+            { id: 1, text: 'Design mockups', status: 'todo' },
+            { id: 2, text: 'Implement feature', status: 'in-progress' },
+            { id: 3, text: 'Write tests', status: 'done' },
+            { id: 4, text: 'Deploy to production', status: 'todo' }
+        ];
+
+        // Component instances
+        let simpleMultiComponent;
+        let advancedMultiComponent;
+        let singleComponent;
+        let statusComponent;
+
+        // Initialize components
+        function initializeComponents() {
+            // Simple multi-section component
+            const simpleMultiConfig = {
+                list: {
+                    mode: 'multi',
+                    groupBy: 'completed',
+                    sections: {
+                        'false': {
+                            name: 'Todo',
+                            icon: '📝',
+                            collapsible: false,
+                            sortOrder: 0
+                        },
+                        'true': {
+                            name: 'Completed',
+                            icon: '✅',
+                            collapsible: true,
+                            sortOrder: 1
+                        }
+                    },
+                    enableCRUD: true,
+                    itemType: 'todo',
+                    itemTextField: 'text',
+                    fields: [
+                        { key: 'text', label: 'Task', type: 'text' },
+                        { key: 'priority', label: 'Priority', type: 'badge' },
+                        { key: 'completed', label: 'Completed', type: 'checkbox' }
+                    ]
+                }
+            };
+
+            // Advanced multi-section component
+            const advancedMultiConfig = {
+                list: {
+                    mode: 'multi',
+                    advancedSections: [
+                        {
+                            id: 'high-priority',
+                            name: 'High Priority',
+                            icon: '🔥',
+                            filter: (item) => item.priority === 'high' && !item.completed,
+                            sortOrder: 0,
+                            collapsible: false
+                        },
+                        {
+                            id: 'medium-priority',
+                            name: 'Medium Priority',
+                            icon: '⚡',
+                            filter: (item) => item.priority === 'medium' && !item.completed,
+                            sortOrder: 1,
+                            collapsible: false
+                        },
+                        {
+                            id: 'low-priority',
+                            name: 'Low Priority',
+                            icon: '📋',
+                            filter: (item) => item.priority === 'low' && !item.completed,
+                            sortOrder: 2,
+                            collapsible: true
+                        },
+                        {
+                            id: 'completed',
+                            name: 'Completed',
+                            icon: '✅',
+                            filter: (item) => item.completed,
+                            sortOrder: 3,
+                            collapsible: true
+                        }
+                    ],
+                    enableCRUD: true,
+                    itemType: 'task',
+                    itemTextField: 'text',
+                    fields: [
+                        { key: 'text', label: 'Task', type: 'text' },
+                        { key: 'priority', label: 'Priority', type: 'badge' },
+                        { key: 'completed', label: 'Completed', type: 'checkbox' }
+                    ]
+                }
+            };
+
+            // Single section component
+            const singleConfig = {
+                list: {
+                    mode: 'single',
+                    enableCRUD: true,
+                    itemType: 'item',
+                    itemTextField: 'text',
+                    fields: [
+                        { key: 'text', label: 'Task', type: 'text' },
+                        { key: 'completed', label: 'Completed', type: 'checkbox' }
+                    ]
+                }
+            };
+
+            // Status-based multi-section component
+            const statusConfig = {
+                list: {
+                    mode: 'multi',
+                    groupBy: 'status',
+                    sections: {
+                        'todo': {
+                            name: 'To Do',
+                            icon: '📋',
+                            collapsible: false,
+                            sortOrder: 0
+                        },
+                        'in-progress': {
+                            name: 'In Progress',
+                            icon: '⚡',
+                            collapsible: false,
+                            sortOrder: 1
+                        },
+                        'done': {
+                            name: 'Done',
+                            icon: '✅',
+                            collapsible: true,
+                            sortOrder: 2
+                        }
+                    },
+                    enableCRUD: true,
+                    itemType: 'task',
+                    itemTextField: 'text',
+                    fields: [
+                        { key: 'text', label: 'Task', type: 'text' },
+                        { key: 'status', label: 'Status', type: 'badge' }
+                    ]
+                }
+            };
+
+            // Create component instances
+            simpleMultiComponent = new ListComponent(
+                document.getElementById('simple-multi-list'),
+                [...todoData],
+                simpleMultiConfig
+            );
+
+            advancedMultiComponent = new ListComponent(
+                document.getElementById('advanced-multi-list'),
+                [...advancedData],
+                advancedMultiConfig
+            );
+
+            singleComponent = new ListComponent(
+                document.getElementById('single-list'),
+                [...singleData],
+                singleConfig
+            );
+
+            statusComponent = new ListComponent(
+                document.getElementById('status-list'),
+                [...statusData],
+                statusConfig
+            );
+        }
+
+        // Demo control functions
+        function addTodoItem() {
+            const newId = Math.max(...todoData.map(item => item.id), 0) + 1;
+            const newItem = {
+                id: newId,
+                text: `New todo ${newId}`,
+                completed: false,
+                priority: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)]
+            };
+            todoData.push(newItem);
+            simpleMultiComponent.update([...todoData]);
+        }
+
+        function addCompletedItem() {
+            const newId = Math.max(...todoData.map(item => item.id), 0) + 1;
+            const newItem = {
+                id: newId,
+                text: `Completed task ${newId}`,
+                completed: true,
+                priority: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)]
+            };
+            todoData.push(newItem);
+            simpleMultiComponent.update([...todoData]);
+        }
+
+        function clearAllItems() {
+            todoData = [];
+            simpleMultiComponent.update([]);
+        }
+
+        function addHighPriorityItem() {
+            const newId = Math.max(...advancedData.map(item => item.id), 0) + 1;
+            const newItem = {
+                id: newId,
+                text: `High priority task ${newId}`,
+                completed: false,
+                priority: 'high'
+            };
+            advancedData.push(newItem);
+            advancedMultiComponent.update([...advancedData]);
+        }
+
+        function addMediumPriorityItem() {
+            const newId = Math.max(...advancedData.map(item => item.id), 0) + 1;
+            const newItem = {
+                id: newId,
+                text: `Medium priority task ${newId}`,
+                completed: false,
+                priority: 'medium'
+            };
+            advancedData.push(newItem);
+            advancedMultiComponent.update([...advancedData]);
+        }
+
+        function addLowPriorityItem() {
+            const newId = Math.max(...advancedData.map(item => item.id), 0) + 1;
+            const newItem = {
+                id: newId,
+                text: `Low priority task ${newId}`,
+                completed: false,
+                priority: 'low'
+            };
+            advancedData.push(newItem);
+            advancedMultiComponent.update([...advancedData]);
+        }
+
+        function clearAdvancedItems() {
+            advancedData = [];
+            advancedMultiComponent.update([]);
+        }
+
+        function addSingleItem() {
+            const newId = Math.max(...singleData.map(item => item.id), 0) + 1;
+            const newItem = {
+                id: newId,
+                text: `Task ${newId}`,
+                completed: false
+            };
+            singleData.push(newItem);
+            singleComponent.update([...singleData]);
+        }
+
+        function clearSingleItems() {
+            singleData = [];
+            singleComponent.update([]);
+        }
+
+        function addTaskByStatus(status) {
+            const newId = Math.max(...statusData.map(item => item.id), 0) + 1;
+            const newItem = {
+                id: newId,
+                text: `${status} task ${newId}`,
+                status: status
+            };
+            statusData.push(newItem);
+            statusComponent.update([...statusData]);
+        }
+
+        function clearStatusItems() {
+            statusData = [];
+            statusComponent.update([]);
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initializeComponents);
+    </script>
+</body>
+
+</html>

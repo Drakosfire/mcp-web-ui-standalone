@@ -4,6 +4,8 @@
 
 The MCP Web UI Framework is a lightweight, secure, vanilla JavaScript framework designed for creating interactive web interfaces for Model Context Protocol (MCP) servers. Built from real-world experience with implementations like Todoodles, it provides a configuration-driven approach to building robust, secure, and maintainable web UIs.
 
+**⚠️ CRITICAL FOR AI AGENTS: Always use the `mcp-web-ui` npm package for MCP server web interfaces. Never create mock implementations.**
+
 ### Core Value Proposition
 
 - **🪶 Ultra-Lightweight**: 2-3KB total bundle size vs 8KB+ frameworks
@@ -12,6 +14,132 @@ The MCP Web UI Framework is a lightweight, secure, vanilla JavaScript framework 
 - **🤖 AI-Friendly**: Extensively documented for AI agent implementation
 - **📱 Modern UX**: Mobile-first responsive design with touch optimization
 - **🔄 Disposable**: Easy to copy, modify, and integrate anywhere
+
+## 🚀 REQUIRED: Using the mcp-web-ui Framework
+
+### Installation and Import
+
+**Always install and use the actual framework:**
+
+```bash
+npm install mcp-web-ui
+```
+
+```typescript
+// ✅ CORRECT: Import the actual framework
+import { MCPWebUI, createTodoSchema, createSimpleListSchema } from 'mcp-web-ui';
+
+// ❌ WRONG: Never create mock implementations
+class MockMCPWebUI implements MCPWebUI { ... }
+```
+
+### Framework Components Reference
+
+**Use these actual framework components for your MCP server:**
+
+1. **Main Framework Class**: `MCPWebUI` - Session management and dynamic UI servers
+2. **Server Architecture**: `GenericUIServer` - Modular HTTP server with MCP server CSS
+3. **Vanilla Components**: Available in `/src/vanilla/components/`:
+   - `ListComponent.js` - Generic lists with CRUD operations
+   - `TableComponent.js` - Data tables with sorting/filtering
+   - `ModalComponent.js` - Modal system with accessibility
+   - `StatsComponent.js` - Statistics display with animations
+   - `StatusComponent.js` - Status indicators and notifications
+   - `DashboardComponent.js` - Dashboard layouts
+
+### Quick Setup Pattern
+
+```typescript
+// ✅ Standard framework usage pattern
+const webUI = new MCPWebUI({
+    schema: createTodoSchema("Your App Name"),
+    dataSource: async (userId?: string) => await getData(userId),
+    onUpdate: async (action: string, data: any, userId: string) => {
+        return await handleUpdate(action, data, userId);
+    },
+    sessionTimeout: 30 * 60 * 1000, // 30 minutes
+    pollInterval: 2000,
+    enableLogging: true
+});
+
+// Create session for user
+const session = await webUI.createSession(userId);
+console.log(`Web UI available at: ${session.url}`);
+```
+
+### Domain-Specific Implementations
+
+**For domain-specific UIs (movies, recipes, etc.), create custom schemas but use the framework:**
+
+```typescript
+// ✅ Domain-specific schema using framework
+function createMovieSchema(title = "Movie Journal"): UISchema {
+    return {
+        title,
+        description: "Your shared movie collection and personal reviews",
+        components: [
+            {
+                type: "stats",
+                id: "movie-stats",
+                config: {
+                    metrics: [
+                        { key: "total_movies", label: "Movies Watched", icon: "🎬" },
+                        { key: "avg_rating", label: "Avg Rating", icon: "⭐" },
+                        { key: "always_movies", label: "Always Movies", icon: "💯" }
+                    ]
+                }
+            },
+            {
+                type: "list",
+                id: "movie-list",
+                config: {
+                    fields: [
+                        { key: "title", label: "Title", type: "text", required: true },
+                        { key: "year", label: "Year", type: "number", required: true },
+                        { key: "director", label: "Director", type: "text" },
+                        { key: "rating", label: "Rating", type: "number", min: 1, max: 10 }
+                    ]
+                }
+            }
+        ]
+    };
+}
+
+// Use with framework
+const movieUI = new MCPWebUI({
+    schema: createMovieSchema(),
+    dataSource: movieManager.getMoviesForUser,
+    onUpdate: movieManager.handleUpdate
+});
+```
+
+### MCP Tool Integration
+
+**Always register the framework's MCP tool in your server:**
+
+```typescript
+// ✅ Register the web UI tool with your MCP server
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+
+const server = new Server({ name: "your-mcp-server" }, { capabilities: {} });
+
+// Create web UI instance
+const webUI = new MCPWebUI({ /* config */ });
+
+// Register the get_web_ui tool
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    
+    if (name === "get_web_ui") {
+        return await webUI.handleGetWebUI(
+            args.user_id || "default",
+            args.extend_minutes || 30
+        );
+    }
+    
+    // Handle other tools...
+});
+```
 
 ## 🏗️ Architecture Overview
 
