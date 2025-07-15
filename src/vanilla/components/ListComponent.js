@@ -9,6 +9,7 @@
  * - Bulk actions and selection
  * - Form handling with validation
  * - Customizable item rendering
+ * - Multi-section support with section-specific actions
  * 
  * SECURITY FEATURES:
  * - All data is sanitized through BaseComponent
@@ -51,6 +52,22 @@
  *       { key: 'status', label: 'Status', type: 'badge' },
  *       { key: 'actions', label: 'Actions', type: 'actions' }
  *     ]
+ *   }
+ * });
+ * 
+ * // Multi-section list with section-specific actions
+ * const multiSectionList = new ListComponent(element, data, {
+ *   list: {
+ *     mode: 'multi',
+ *     groupBy: 'completed',
+ *     sections: {
+ *       'false': { name: 'Active', icon: '📋', collapsible: false },
+ *       'true': { name: 'Completed', icon: '✅', collapsible: true }
+ *     },
+ *     sectionActions: {
+ *       'false': { global: ['add', 'import'] },
+ *       'true': { global: ['clear_completed'] }
+ *     }
  *   }
  * });
  */
@@ -103,6 +120,18 @@ class ListComponent extends BaseComponent {
                 item: ['edit', 'delete'], // Available item actions
                 bulk: ['delete'], // Available bulk actions
                 global: ['add'] // Available global actions
+            },
+
+            // Section-specific actions configuration (for multi-section mode)
+            sectionActions: {
+                // Example: 'sectionId': { 
+                //   global: ['action1'], 
+                //   item: ['edit'], 
+                //   bulk: ['delete'],
+                //   actionConfigs: {
+                //     'action1': { label: 'Custom Label', icon: '🎯', type: 'primary' }
+                //   }
+                // }
             },
 
             // Form configuration
@@ -696,6 +725,7 @@ class ListComponent extends BaseComponent {
     renderSectionHeader(section, items) {
         const itemCount = items.length;
         const isCollapsed = this.listState.sectionStates.get(section.id)?.collapsed || false;
+        const hasSectionActions = this.listConfig.sectionActions[section.id]?.global?.length > 0;
 
         return this.html`
             <div class="section-header" data-section="${section.id}">
@@ -704,15 +734,18 @@ class ListComponent extends BaseComponent {
                     <h3 class="section-name">${section.name}</h3>
                     <span class="section-count">(${itemCount})</span>
                 </div>
-                ${section.collapsible ? this.trustedHtml(`
-                    <button class="section-toggle" 
-                            data-action="toggle-section" 
-                            data-section="${section.id}"
-                            aria-expanded="${!isCollapsed}"
-                            title="${isCollapsed ? 'Expand section' : 'Collapse section'}">
-                        ${isCollapsed ? '▶' : '▼'}
-                    </button>
-                `) : ''}
+                <div class="section-header-controls">
+                    ${hasSectionActions ? this.trustedHtml(this.renderSectionActions(section.id)) : ''}
+                    ${section.collapsible ? this.trustedHtml(`
+                        <button class="section-toggle" 
+                                data-action="toggle-section" 
+                                data-section="${section.id}"
+                                aria-expanded="${!isCollapsed}"
+                                title="${isCollapsed ? 'Expand section' : 'Collapse section'}">
+                            ${isCollapsed ? '▶' : '▼'}
+                        </button>
+                    `) : ''}
+                </div>
             </div>
         `;
     }
@@ -1012,6 +1045,40 @@ class ListComponent extends BaseComponent {
     }
 
     /**
+     * Render section actions
+     */
+    renderSectionActions(sectionId) {
+        const sectionActions = this.listConfig.sectionActions[sectionId] || {};
+        const globalActions = sectionActions.global || [];
+
+        if (globalActions.length === 0) return '';
+
+        return this.html`
+            <div class="section-actions">
+                ${this.trustedHtml(globalActions.map(action => this.renderSectionAction(action, sectionId)).join(''))}
+            </div>
+        `;
+    }
+
+    /**
+     * Render a single section action
+     */
+    renderSectionAction(action, sectionId) {
+        const actionConfig = this.getSectionActionConfig(action, sectionId);
+
+        return `
+            <button 
+                class="btn btn-${actionConfig.type || 'secondary'} btn-sm"
+                data-action="section-${action}"
+                data-section="${sectionId}"
+                title="${actionConfig.title || actionConfig.label}"
+            >
+                ${actionConfig.icon || ''} ${actionConfig.label}
+            </button>
+        `;
+    }
+
+    /**
      * Render empty state
      */
     renderEmptyState() {
@@ -1085,6 +1152,13 @@ class ListComponent extends BaseComponent {
         this.on('click', '[data-action^="bulk-"]', (e) => {
             const action = e.target.dataset.action.replace('bulk-', '');
             this.handleBulkAction(action);
+        });
+
+        // Section actions
+        this.on('click', '[data-action^="section-"]', (e) => {
+            const action = e.target.dataset.action.replace('section-', '');
+            const sectionId = e.target.dataset.section;
+            this.handleSectionAction(action, sectionId);
         });
 
         // Selection
@@ -1208,6 +1282,26 @@ class ListComponent extends BaseComponent {
                 break;
             default:
                 this.log('WARN', `Unknown bulk action: ${action}`);
+        }
+    }
+
+    /**
+     * Handle section actions
+     */
+    async handleSectionAction(action, sectionId) {
+        try {
+            this.log('INFO', `Handling section action: ${action} for section: ${sectionId}`);
+
+            // For most actions, delegate to the main action handler
+            // This allows section-specific actions to be handled by the server/component
+            const result = await this.handleAction(action, { sectionId });
+
+            if (result.success) {
+                this.log('INFO', `Section action completed: ${action}`);
+            }
+        } catch (error) {
+            this.log('ERROR', `Section action failed: ${action} for section ${sectionId}: ${error.message}`);
+            this.handleError(error);
         }
     }
 
@@ -1546,6 +1640,22 @@ class ListComponent extends BaseComponent {
         };
 
         return defaults[action] || { label: action, type: 'default' };
+    }
+
+    getSectionActionConfig(action, sectionId) {
+        // Get base action configuration
+        const baseConfig = this.getActionConfig(action);
+
+        // Look for section-specific action configuration overrides
+        const sectionConfig = this.listConfig.sectionActions[sectionId];
+        const sectionActionConfigs = sectionConfig?.actionConfigs || {};
+        const sectionOverrides = sectionActionConfigs[action] || {};
+
+        // Merge base config with section-specific overrides
+        return {
+            ...baseConfig,
+            ...sectionOverrides
+        };
     }
 
     getTableColumns() {
