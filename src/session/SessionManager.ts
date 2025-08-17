@@ -9,15 +9,34 @@ export class SessionManager {
     private usedPorts = new Set<number>();
     private portRange: [number, number];
     private baseUrl: string;
+    private protocol: string;
     private userSessionLimits = new Map<string, { count: number; lastCreated: Date }>();
 
     constructor(
         sessionTimeoutMs = 30 * 60 * 1000, // 30 minutes default
         portRange: [number, number] = [3000, 65535],
-        baseUrl = 'localhost'
+        baseUrl = 'localhost',
+        protocol?: string
     ) {
         this.portRange = portRange;
-        this.baseUrl = baseUrl;
+
+        // Auto-detect protocol from baseUrl if not provided
+        if (protocol) {
+            this.protocol = protocol;
+            this.baseUrl = baseUrl;
+        } else {
+            // Extract protocol from baseUrl if it contains one
+            if (baseUrl.startsWith('https://')) {
+                this.protocol = 'https';
+                this.baseUrl = baseUrl.replace('https://', '');
+            } else if (baseUrl.startsWith('http://')) {
+                this.protocol = 'http';
+                this.baseUrl = baseUrl.replace('http://', '');
+            } else {
+                this.protocol = 'http';
+                this.baseUrl = baseUrl;
+            }
+        }
 
         // Note: Cleanup is now handled by MCPWebUI to properly stop UI servers
     }
@@ -64,7 +83,7 @@ export class SessionManager {
             id: sessionId,
             token,
             userId,
-            url: `http://${this.baseUrl}:${port}?token=${token}`,
+            url: `${this.protocol}://${this.baseUrl}:${port}?token=${token}`,
             port,
             startTime: now,
             lastActivity: now,

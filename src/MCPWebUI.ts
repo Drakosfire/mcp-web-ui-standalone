@@ -24,6 +24,7 @@ export class MCPWebUI<T = any> {
             portRange: [3000, 65535],
             enableLogging: true,
             baseUrl: 'localhost',
+            protocol: 'http', // Default protocol
             // If baseUrl is not localhost, default to binding all interfaces
             bindAddress: config.baseUrl && config.baseUrl !== 'localhost' ? '0.0.0.0' : 'localhost',
             cssPath: './static', // Default MCP server CSS path
@@ -34,7 +35,8 @@ export class MCPWebUI<T = any> {
         this.sessionManager = new SessionManager(
             this.config.sessionTimeout,
             this.config.portRange,
-            this.config.baseUrl
+            this.config.baseUrl,
+            this.config.protocol
         );
 
         // Set up automatic cleanup - check for expired sessions every minute
