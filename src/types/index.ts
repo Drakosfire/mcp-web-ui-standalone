@@ -87,6 +87,7 @@ export interface MCPWebUIConfig<T = any> {
     portRange?: [number, number]; // default [3000, 65535]
     enableLogging?: boolean;
     baseUrl?: string; // base URL for sessions, default 'localhost'
+    protocol?: string; // protocol for session URLs, default 'http' or auto-detected from baseUrl
     bindAddress?: string; // address to bind server to, default 'localhost' or '0.0.0.0' for all
     cssPath?: string; // Path to MCP server's CSS directory (e.g., './static' or '../todoodles/src/web-ui/static')
     serverName?: string; // Explicit server name override (e.g., 'todoodles', 'grocery') - used for CSS file naming if not auto-detected
