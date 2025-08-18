@@ -18,6 +18,7 @@
 
 import express, { Request, Response } from 'express';
 import { Server } from 'http';
+import { Server as HttpsServer } from 'https';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -54,8 +55,9 @@ export interface UIServerPlugin {
  */
 export class GenericUIServer {
     private app: express.Application;
-    private server: Server | null = null;
+    private server: Server | HttpsServer | null = null;
     private dataPollingInterval: NodeJS.Timeout | null = null;
+    private useHttps: boolean = false;
 
     // Modular components
     private resourceManager: ResourceManager;
@@ -73,10 +75,12 @@ export class GenericUIServer {
         private sessionManager: SessionManager,
         private config: UIServerConfig = DEFAULT_UI_SERVER_CONFIG,
         private pollInterval = 2000,
-        private bindAddress = 'localhost'
+        private bindAddress = 'localhost',
+        private protocol: 'http' | 'https' = 'http'
     ) {
         this.app = express();
         this.projectRoot = this.findProjectRoot();
+        this.useHttps = protocol === 'https';
 
         // Initialize modular components
         this.resourceManager = new ResourceManager(this.config, this.projectRoot);

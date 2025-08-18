@@ -86,11 +86,17 @@ export class SessionManager {
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes
 
+        // Support reverse-proxy path mode to avoid exposing high ports externally
+        const proxyPrefix = process.env.MCP_WEB_UI_PROXY_PREFIX;
+        const sessionUrl = proxyPrefix && proxyPrefix.trim().length > 0
+            ? `${this.protocol}://${this.baseUrl}${proxyPrefix.replace(/\/$/, '')}/${port}/?token=${token}`
+            : `${this.protocol}://${this.baseUrl}:${port}?token=${token}`;
+
         const session: WebUISession = {
             id: sessionId,
             token,
             userId,
-            url: `${this.protocol}://${this.baseUrl}:${port}?token=${token}`,
+            url: sessionUrl,
             port,
             startTime: now,
             lastActivity: now,

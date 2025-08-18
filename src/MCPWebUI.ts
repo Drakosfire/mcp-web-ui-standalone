@@ -113,7 +113,8 @@ export class MCPWebUI<T = any> {
                 this.sessionManager,
                 uiConfig,
                 this.config.pollInterval,
-                this.config.bindAddress
+                this.config.bindAddress,
+                this.config.protocol as 'http' | 'https'
             );
 
             await uiServer.start();
