@@ -15,6 +15,7 @@ export class MCPWebUI<T = any> {
     private sessionManager: SessionManager;
     private activeServers = new Map<string, GenericUIServer>();
     private config: Required<MCPWebUIConfig<T>>;
+    private cleanupInterval?: NodeJS.Timeout;
 
     constructor(config: MCPWebUIConfig<T>) {
         // Set defaults
@@ -31,6 +32,15 @@ export class MCPWebUI<T = any> {
             serverName: '', // Default server name
             ...config
         };
+
+        // Auto-detect protocol from baseUrl if not explicitly provided
+        if (!config.protocol && config.baseUrl) {
+            if (config.baseUrl.startsWith('https://')) {
+                this.config.protocol = 'https';
+            } else if (config.baseUrl.startsWith('http://')) {
+                this.config.protocol = 'http';
+            }
+        }
 
         this.sessionManager = new SessionManager(
             this.config.sessionTimeout,
@@ -51,7 +61,7 @@ export class MCPWebUI<T = any> {
      * Start automatic cleanup of expired sessions
      */
     private startAutomaticCleanup(): void {
-        setInterval(async () => {
+        this.cleanupInterval = setInterval(async () => {
             await this.cleanupExpiredSessions();
         }, 60 * 1000); // Check every minute
     }
@@ -187,6 +197,12 @@ export class MCPWebUI<T = any> {
      */
     async shutdown(): Promise<void> {
         this.log('INFO', 'Shutting down MCPWebUI...');
+
+        // Clear the cleanup interval
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = undefined;
+        }
 
         // Stop all active servers
         const stopPromises = Array.from(this.activeServers.values()).map(server =>

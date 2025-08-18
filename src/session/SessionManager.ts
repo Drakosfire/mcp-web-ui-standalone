@@ -23,7 +23,14 @@ export class SessionManager {
         // Auto-detect protocol from baseUrl if not provided
         if (protocol) {
             this.protocol = protocol;
-            this.baseUrl = baseUrl;
+            // If baseUrl contains a protocol, strip it since we have an explicit protocol
+            if (baseUrl.startsWith('https://')) {
+                this.baseUrl = baseUrl.replace('https://', '');
+            } else if (baseUrl.startsWith('http://')) {
+                this.baseUrl = baseUrl.replace('http://', '');
+            } else {
+                this.baseUrl = baseUrl;
+            }
         } else {
             // Extract protocol from baseUrl if it contains one
             if (baseUrl.startsWith('https://')) {

@@ -6,6 +6,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-08-17
+
+### 🔧 **Protocol & Port Range Configuration Release**
+
+#### ✨ **New Features**
+- **Configurable Protocol Support**: Added support for HTTPS URLs in ephemeral web UI sessions
+  - New `protocol` configuration option in `MCPWebUIConfig`
+  - Auto-detection of protocol from `baseUrl` (supports `https://` and `http://` prefixes)
+  - Manual protocol override via `protocol` parameter
+  - Session URLs now correctly use configured protocol instead of hardcoded `http://`
+- **Enhanced Port Range Configuration**: Improved port allocation for ephemeral web UI servers
+  - Better integration with firewall rules and security configurations
+  - Support for custom port ranges (e.g., `[11000, 12000]` for production deployments)
+  - Proper port allocation within specified ranges for multi-tenant environments
+
+#### 🔧 **Critical Bug Fixes**
+- **URL Malformation Fix**: Resolved `http://https//domain.com` malformed URLs
+  - SessionManager now properly constructs URLs with correct protocol
+  - Eliminates double protocol prefixes in generated session URLs
+  - URLs now correctly format as `https://domain.com:port?token=uuid`
+- **Port Range Enforcement**: Fixed port allocation to respect configured ranges
+  - MCP servers now properly use `portRange` configuration instead of falling back to defaults
+  - Ports allocated within specified range (e.g., 11000-12000) for production deployments
+  - Eliminates port conflicts with other services
+
+#### 🛠️ **Developer Experience**
+- **Enhanced Configuration**: More flexible configuration options for production deployments
+  - `MCPWebUIConfig` interface now includes `protocol` field
+  - Backward compatibility maintained for existing configurations
+  - Clear documentation for protocol and port range configuration
+- **Production Ready**: Framework now supports secure, multi-tenant deployments
+  - HTTPS support for secure ephemeral web UI sessions
+  - Configurable port ranges for firewall and security compliance
+  - Proper URL generation for external access
+
+#### 🔒 **Security Improvements**
+- **HTTPS Support**: Secure protocol support for production deployments
+- **Port Range Security**: Configurable port ranges for better security management
+- **URL Integrity**: Proper URL construction prevents malformed session URLs
+
+#### 📊 **Backend Integration**
+- **MCP Server Compatibility**: Enhanced compatibility with MCP server deployments
+  - Proper integration with environment-based configuration
+  - Support for production deployment patterns
+  - Better integration with reverse proxies and load balancers
+
+---
+
 ## [1.0.5] - 2025-06-29
 
 ### 🚀 **Major Feature Release: Scheduled Tasks Component**
