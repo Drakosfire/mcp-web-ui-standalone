@@ -42,6 +42,11 @@ export class MCPWebUI<T = any> {
             }
         }
 
+        // Override bindAddress for proxy mode - always bind to localhost when using proxy
+        if (process.env.MCP_WEB_UI_PROXY_PREFIX && process.env.MCP_WEB_UI_PROXY_PREFIX.trim().length > 0) {
+            this.config.bindAddress = 'localhost';
+        }
+
         this.sessionManager = new SessionManager(
             this.config.sessionTimeout,
             this.config.portRange,
