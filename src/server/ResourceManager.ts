@@ -19,7 +19,8 @@ export interface LoadedResources {
 export class ResourceManager {
     constructor(
         private config: UIServerConfig,
-        private projectRoot: string
+        private projectRoot: string,
+        private staticBasePath: string = '/static'
     ) { }
 
     /**
@@ -54,13 +55,14 @@ export class ResourceManager {
     /**
      * Schema-driven theme CSS loading from MCP server
      * Simple: always load styles.css if MCP CSS directory is configured
+     * Uses configurable static base path for gateway proxy compatibility
      */
     private getThemeCSS(schema: UISchema): string[] {
         const css: string[] = [];
 
         // If MCP server directory is configured, load app styles
         if (this.config.resources.css.mcpServerDirectory) {
-            css.push('/static/styles.css');
+            css.push(`${this.staticBasePath}/styles.css`);
         }
 
         return css;
@@ -74,12 +76,12 @@ export class ResourceManager {
 
         // If bundling is enabled, only load the bundled file
         if (this.config.resources.javascript.enableBundling) {
-            js.push('/static/mcp-framework.js');
+            js.push(`${this.staticBasePath}/mcp-framework.js`);
         } else {
             // Load individual files only if bundling is disabled
             for (const componentConfig of this.config.resources.javascript.components) {
                 if (componentConfig.loadCondition(schema)) {
-                    js.push(...componentConfig.files.map(file => `/static/${file}`));
+                    js.push(...componentConfig.files.map(file => `${this.staticBasePath}/${file}`));
                 }
             }
         }

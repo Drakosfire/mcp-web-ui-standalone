@@ -81,8 +81,12 @@ const schema = {
     ]
 };
 
-// Initialize from schema
-const components = MCP.initFromSchema(schema, initialData, config);
+// Initialize from schema with port configuration
+const components = MCP.initFromSchema(schema, initialData, {
+    ...config,
+    portRange: [11000, 12000], // Custom port range
+    blockedPorts: [11434] // Block specific ports (e.g., Ollama)
+});
 ```
 
 ---
@@ -331,6 +335,33 @@ const uiServer = new UIServer(
     pollInterval,
     bindAddress
 );
+```
+
+### Port Configuration
+
+The framework supports flexible port configuration to avoid conflicts:
+
+```typescript
+import { MCPWebUI } from 'mcp-web-ui';
+
+const webUI = new MCPWebUI({
+    dataSource: myDataSource,
+    schema: mySchema,
+    onUpdate: myUpdateHandler,
+    portRange: [11000, 12000], // Custom port range
+    blockedPorts: [11434, 3000], // Block specific ports (e.g., Ollama, default apps)
+    baseUrl: 'https://dev.sizzek.dungeonmind.net'
+});
+```
+
+**Environment Variables**:
+```bash
+# Set port range
+MCP_WEB_UI_PORT_MIN=11000
+MCP_WEB_UI_PORT_MAX=12000
+
+# Block specific ports (comma-separated)
+MCP_WEB_UI_BLOCKED_PORTS=11434,3000,8080
 ```
 
 ### API Endpoints

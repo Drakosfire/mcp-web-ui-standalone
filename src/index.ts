@@ -15,6 +15,9 @@ export { SessionManager } from './session/SessionManager.js';
 // Type definitions
 export * from './types/index.js';
 
+// Gateway Proxy components
+export * from './proxy/index.js';
+
 // Utility functions for common UI schemas
 export const createTodoSchema = (title = "Todo List"): any => ({
     title,

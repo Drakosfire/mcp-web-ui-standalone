@@ -12,6 +12,10 @@ export interface UIServerConfig {
         maxRequestSize: string;
     };
 
+    // Proxy mode configuration
+    proxyMode?: boolean;
+    serverName?: string;
+
     // Security configuration
     security: {
         enableCSP: boolean;

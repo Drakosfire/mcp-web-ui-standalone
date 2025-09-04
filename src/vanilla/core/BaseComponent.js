@@ -338,10 +338,20 @@ class BaseComponent {
             throw new Error('API call rate limited - please wait before making another request');
         }
 
-        const url = `${this.config.apiBase}${endpoint}?token=${this.config.sessionToken}`;
+        // Check if we're in gateway mode (token already in apiBase path)
+        const isGatewayMode = this.config.apiBase.includes('/mcp/') && this.config.apiBase.includes(this.config.sessionToken);
+
+        let url;
+        if (isGatewayMode) {
+            // Gateway mode: token is already in the apiBase path, don't add query parameter
+            url = `${this.config.apiBase}${endpoint}`;
+        } else {
+            // Direct mode: add token as query parameter
+            url = `${this.config.apiBase}${endpoint}?token=${this.config.sessionToken}`;
+        }
 
         const requestOptions = {
-            method: 'GET',
+            method: options.method || 'GET',  // Use options.method if provided, otherwise default to GET
             headers: {
                 'Content-Type': 'application/json',
                 'X-Session-Token': this.config.sessionToken,
@@ -350,6 +360,15 @@ class BaseComponent {
             ...options
         };
 
+        // Debug: Log the actual request being made
+        this.log('DEBUG', `Making API request`, {
+            url: url,
+            method: requestOptions.method,
+            hasBody: !!requestOptions.body,
+            bodyPreview: requestOptions.body ? requestOptions.body.substring(0, 200) : 'none',
+            headers: requestOptions.headers
+        });
+
         try {
             const response = await fetch(url, requestOptions);
 
@@ -357,7 +376,30 @@ class BaseComponent {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const result = await response.json();
+            // Debug: Log response details before parsing
+            const responseText = await response.text();
+            this.log('DEBUG', `API response received`, {
+                status: response.status,
+                statusText: response.statusText,
+                contentType: response.headers.get('content-type'),
+                responseLength: responseText.length,
+                responsePreview: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''),
+                url: url
+            });
+
+            // Try to parse as JSON
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseError) {
+                this.log('ERROR', `JSON parse failed for response`, {
+                    parseError: parseError.message,
+                    responseText: responseText,
+                    url: url
+                });
+                throw new Error(`Invalid JSON response: ${parseError.message}. Response: ${responseText.substring(0, 200)}`);
+            }
+
             this.retryCount = 0; // Reset retry count on success
 
             return result;

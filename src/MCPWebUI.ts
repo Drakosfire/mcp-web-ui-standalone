@@ -14,15 +14,29 @@ import {
 export class MCPWebUI<T = any> {
     private sessionManager: SessionManager;
     private activeServers = new Map<string, GenericUIServer>();
-    private config: Required<MCPWebUIConfig<T>>;
+    private config: MCPWebUIConfig<T> & {
+        sessionTimeout: number;
+        pollInterval: number;
+        portRange: [number, number];
+        blockedPorts: number[];
+        enableLogging: boolean;
+        baseUrl: string;
+        protocol: string;
+        bindAddress: string;
+        cssPath: string;
+        serverName: string;
+        proxyMode: boolean;
+        mongoDbName: string;
+    };
     private cleanupInterval?: NodeJS.Timeout;
 
     constructor(config: MCPWebUIConfig<T>) {
-        // Set defaults
+        // Set defaults with proper blocked ports handling
         this.config = {
             sessionTimeout: 30 * 60 * 1000, // 30 minutes
             pollInterval: 2000, // 2 seconds
             portRange: [3000, 65535],
+            blockedPorts: config.blockedPorts || [], // Use provided value or default
             enableLogging: true,
             baseUrl: 'localhost',
             protocol: 'http', // Default protocol
@@ -30,6 +44,10 @@ export class MCPWebUI<T = any> {
             bindAddress: config.baseUrl && config.baseUrl !== 'localhost' ? '0.0.0.0' : 'localhost',
             cssPath: './static', // Default MCP server CSS path
             serverName: '', // Default server name
+            proxyMode: false, // Default to direct mode
+            mongoUrl: undefined, // No MongoDB by default
+            mongoDbName: 'mcp_webui', // Default database name
+            jwtSecret: undefined, // No JWT by default
             ...config
         };
 
@@ -42,16 +60,36 @@ export class MCPWebUI<T = any> {
             }
         }
 
+        // Detect proxy mode (including gateway mode)
+        const proxyMode = !!(config.proxyMode ||
+            process.env.MCP_WEB_UI_PROXY_MODE === 'true' ||
+            process.env.MCP_WEB_UI_MONGO_URL ||
+            process.env.MCP_WEB_UI_USE_GATEWAY === 'true');
+
         // Override bindAddress for proxy mode - always bind to localhost when using proxy
-        if (process.env.MCP_WEB_UI_PROXY_PREFIX && process.env.MCP_WEB_UI_PROXY_PREFIX.trim().length > 0) {
+        if (proxyMode ||
+            (process.env.MCP_WEB_UI_PROXY_PREFIX && process.env.MCP_WEB_UI_PROXY_PREFIX.trim().length > 0)) {
             this.config.bindAddress = 'localhost';
+        } else if (process.env.MCP_WEB_UI_BIND_ADDRESS) {
+            // Use explicit bind address from environment
+            this.config.bindAddress = process.env.MCP_WEB_UI_BIND_ADDRESS;
         }
 
+        // Create session manager with proxy mode support
         this.sessionManager = new SessionManager(
             this.config.sessionTimeout,
             this.config.portRange,
             this.config.baseUrl,
-            this.config.protocol
+            this.config.protocol,
+            this.config.blockedPorts,
+            {
+                proxyMode,
+                mongoUrl: this.config.mongoUrl,
+                mongoDbName: this.config.mongoDbName,
+                jwtSecret: this.config.jwtSecret,
+                serverName: this.config.serverName,
+                logger: (level: string, message: string, data?: any) => this.log(level.toUpperCase() as any, message)
+            }
         );
 
         // Set up automatic cleanup - check for expired sessions every minute
@@ -61,6 +99,8 @@ export class MCPWebUI<T = any> {
         process.on('SIGINT', () => this.shutdown());
         process.on('SIGTERM', () => this.shutdown());
     }
+
+
 
     /**
      * Start automatic cleanup of expired sessions
@@ -75,16 +115,24 @@ export class MCPWebUI<T = any> {
      * Cleanup expired sessions and their UI servers
      */
     private async cleanupExpiredSessions(): Promise<void> {
-        const now = new Date();
-        const activeSessions = this.sessionManager.getActiveSessions();
-        const expiredSessions = activeSessions.filter(session => now > session.expiresAt);
+        if (this.sessionManager.isProxyMode()) {
+            // In proxy mode, MongoDB TTL handles expiration automatically
+            // We just need to clean up local UI servers that may be orphaned
+            const stats = await this.sessionManager.getStats();
+            this.log('INFO', `Proxy mode active sessions: ${stats.totalActiveSessions || 0}`);
+        } else {
+            // Direct mode: manual cleanup
+            const now = new Date();
+            const activeSessions = await this.sessionManager.getActiveSessions();
+            const expiredSessions = activeSessions.filter(session => now > session.expiresAt);
 
-        if (expiredSessions.length > 0) {
-            this.log('INFO', `Found ${expiredSessions.length} expired sessions, cleaning up...`);
+            if (expiredSessions.length > 0) {
+                this.log('INFO', `Found ${expiredSessions.length} expired sessions, cleaning up...`);
 
-            for (const session of expiredSessions) {
-                this.log('INFO', `Session ${session.id} expired (${session.expiresAt.toISOString()}), terminating...`);
-                await this.terminateSession(session.id);
+                for (const session of expiredSessions) {
+                    this.log('INFO', `Session ${session.id} expired (${session.expiresAt.toISOString()}), terminating...`);
+                    await this.terminateSession(session.id);
+                }
             }
         }
     }
@@ -93,23 +141,25 @@ export class MCPWebUI<T = any> {
      * Create a new UI session for a user
      * Returns the session with URL that can be shared
      * Automatically cleans up any existing session for the same user
+     * Uses UnifiedSessionManager which handles both direct and proxy modes
      */
     async createSession(userId: string): Promise<WebUISession> {
         try {
-            // Check for existing session for this user and clean it up
-            const existingSession = this.sessionManager.getSessionByUserId(userId);
-            if (existingSession) {
-                this.log('INFO', `Cleaning up existing session for user ${userId} before creating new one`);
-                await this.terminateSession(existingSession.id);
-            }
+            this.log('INFO', `[SESSION-CREATION] Starting session creation for user: ${userId}`);
+            this.log('INFO', `[SESSION-CREATION] Environment: GATEWAY=${process.env.MCP_WEB_UI_USE_GATEWAY}, URL=${process.env.MCP_WEB_UI_GATEWAY_URL}, BASE=${process.env.MCP_WEB_UI_BASE_URL}, PREFIX=${process.env.MCP_WEB_UI_PROXY_PREFIX}`);
 
-            // Create session (SessionManager will also check, but this ensures UI server cleanup)
-            const session = this.sessionManager.createSession(userId);
+            // Create session using unified session manager
+            this.log('INFO', `[SESSION-CREATION] Calling sessionManager.createSession(${userId})`);
+            const session = await this.sessionManager.createSession(userId);
 
-            // Create configuration for MCP server CSS architecture
+
+            // Debug: Log what SessionManager actually returned
+            this.log('INFO', `[SESSION-CREATION] SessionManager returned session: ID=${session.id}, Token=${session.token}, URL=${session.url}, Port=${session.port}`);
+
+            // Always create UI server - the gateway needs it to proxy to
+            this.log('INFO', `[SESSION-CREATION] Creating UI server on port ${session.port}`);
             const uiConfig = this.createUIServerConfig();
 
-            // Create and start GenericUIServer with MCP server CSS support
             const uiServer = new GenericUIServer(
                 session,
                 this.config.schema,
@@ -125,7 +175,9 @@ export class MCPWebUI<T = any> {
             await uiServer.start();
             this.activeServers.set(session.id, uiServer);
 
-            this.log('INFO', `Created UI session for user ${userId}: ${session.url}`);
+
+            this.log('INFO', `[SESSION-CREATION] UI server started successfully for user ${userId}: ${session.url}`);
+            this.log('INFO', `[SESSION-CREATION] Session details: ID=${session.id}, Token=${session.token}, Port=${session.port}`);
             return session;
         } catch (error: any) {
             this.log('ERROR', `Failed to create UI session for user ${userId}: ${error}`);
@@ -158,8 +210,8 @@ export class MCPWebUI<T = any> {
     /**
      * Get active session by token (for validation)
      */
-    getSessionByToken(token: string): WebUISession | null {
-        return this.sessionManager.getSessionByToken(token);
+    async getSessionByToken(token: string): Promise<WebUISession | null> {
+        return await this.sessionManager.getSessionByToken(token);
     }
 
     /**
@@ -173,7 +225,7 @@ export class MCPWebUI<T = any> {
                 this.activeServers.delete(sessionId);
             }
 
-            const success = this.sessionManager.terminateSession(sessionId);
+            const success = await this.sessionManager.terminateSession(sessionId);
             if (success) {
                 this.log('INFO', `Terminated session ${sessionId}`);
             }
@@ -187,8 +239,8 @@ export class MCPWebUI<T = any> {
     /**
      * Get stats about active sessions and servers
      */
-    getStats() {
-        const sessionStats = this.sessionManager.getStats();
+    async getStats() {
+        const sessionStats = await this.sessionManager.getStats();
         return {
             ...sessionStats,
             activeServers: this.activeServers.size,
@@ -220,8 +272,8 @@ export class MCPWebUI<T = any> {
         await Promise.all(stopPromises);
         this.activeServers.clear();
 
-        // Shutdown session manager
-        this.sessionManager.shutdown();
+        // Shutdown unified session manager (handles both modes)
+        await this.sessionManager.shutdown();
 
         this.log('INFO', 'MCPWebUI shutdown complete');
     }
@@ -247,6 +299,8 @@ export class MCPWebUI<T = any> {
             }
         };
     }
+
+
 
     /**
      * Handle the get_web_ui tool call

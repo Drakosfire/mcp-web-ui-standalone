@@ -85,12 +85,19 @@ export interface MCPWebUIConfig<T = any> {
     sessionTimeout?: number; // milliseconds, default 30 minutes
     pollInterval?: number; // milliseconds, default 2 seconds
     portRange?: [number, number]; // default [3000, 65535]
+    blockedPorts?: number[]; // ports to skip when finding available port, default []
     enableLogging?: boolean;
     baseUrl?: string; // base URL for sessions, default 'localhost'
     protocol?: string; // protocol for session URLs, default 'http' or auto-detected from baseUrl
     bindAddress?: string; // address to bind server to, default 'localhost' or '0.0.0.0' for all
     cssPath?: string; // Path to MCP server's CSS directory (e.g., './static' or '../todoodles/src/web-ui/static')
     serverName?: string; // Explicit server name override (e.g., 'todoodles', 'grocery') - used for CSS file naming if not auto-detected
+
+    // Proxy mode configuration
+    proxyMode?: boolean; // Enable proxy mode with token registry
+    mongoUrl?: string; // MongoDB URL for token registry (required in proxy mode)
+    mongoDbName?: string; // MongoDB database name, default: 'mcp_webui'
+    jwtSecret?: string; // JWT secret for token signing
 }
 
 // Server management types

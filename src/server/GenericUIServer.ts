@@ -82,8 +82,11 @@ export class GenericUIServer {
         this.projectRoot = this.findProjectRoot();
         this.useHttps = protocol === 'https';
 
+        // Determine static base path based on session type
+        const staticBasePath = this.determineStaticBasePath();
+
         // Initialize modular components
-        this.resourceManager = new ResourceManager(this.config, this.projectRoot);
+        this.resourceManager = new ResourceManager(this.config, this.projectRoot, staticBasePath);
         this.templateEngine = new TemplateEngine(this.config, this.resourceManager);
 
         // Setup server
@@ -98,32 +101,54 @@ export class GenericUIServer {
      * Start the server
      */
     async start(): Promise<void> {
+        // TEMPORARY: Force binding to all interfaces for testing
+        // TODO: Fix environment variable inheritance issue
+        let bindAddress = '0.0.0.0';
+
+        this.log('INFO', `Starting GenericUIServer on ${bindAddress}:${this.session.port}`);
+
         // Validate resources before starting
         const validation = this.resourceManager.validateResources(this.schema);
         if (!validation.valid) {
             this.log('WARN', `Missing resources: ${validation.missing.join(', ')}`);
+        } else {
+            this.log('INFO', `Resource validation passed`);
         }
 
         return new Promise((resolve, reject) => {
             try {
-                this.server = this.app.listen(this.session.port, this.bindAddress, () => {
-                    this.log('INFO', `Server started on ${this.bindAddress}:${this.session.port}`);
+                this.log('INFO', `Attempting to bind to ${bindAddress}:${this.session.port}`);
+
+                this.server = this.app.listen(this.session.port, bindAddress, () => {
+                    this.log('INFO', `✅ Server started successfully on ${bindAddress}:${this.session.port}`);
                     this.log('INFO', `Serving schema: ${this.schema.title}`);
                     this.log('INFO', `Theme detection: ${this.getActiveThemes().join(', ') || 'default'}`);
 
                     this.startDataPolling();
+
+                    // Register with gateway if in proxy mode
+                    this.registerWithGateway().catch(error => {
+                        this.log('WARN', `Failed to register with gateway: ${error.message}`);
+                    });
+
                     resolve();
                 });
 
                 this.server.on('error', (error: any) => {
+                    this.log('ERROR', `Server startup failed: ${error.message}`);
                     if (error.code === 'EADDRINUSE') {
                         this.log('ERROR', `Port ${this.session.port} already in use`);
                         reject(new Error(`Port ${this.session.port} already in use`));
+                    } else if (error.code === 'EACCES') {
+                        this.log('ERROR', `Permission denied binding to ${bindAddress}:${this.session.port}`);
+                        reject(new Error(`Permission denied binding to ${bindAddress}:${this.session.port}`));
                     } else {
+                        this.log('ERROR', `Unknown server error: ${error.code} - ${error.message}`);
                         reject(error);
                     }
                 });
             } catch (error) {
+                this.log('ERROR', `Failed to create server: ${error}`);
                 reject(error);
             }
         });
@@ -221,12 +246,35 @@ export class GenericUIServer {
             });
         }
 
-        // Body parser with configurable limits
-        this.app.use(express.json({ limit: this.config.server.maxRequestSize }));
+        // Body parser with configurable limits and error handling
+        this.app.use(express.json({
+            limit: this.config.server.maxRequestSize,
+            verify: (req, res, buf, encoding) => {
+                // Store raw body for debugging
+                (req as any).rawBody = buf;
+            }
+        }));
         this.app.use(express.urlencoded({
             extended: true,
             limit: this.config.server.maxRequestSize
         }));
+
+        // Error handler for body parser errors
+        this.app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+            if (error instanceof SyntaxError && 'body' in error) {
+                this.log('WARN', `JSON parsing error: ${error.message} - ${req.method} ${req.path} (${req.get('Content-Type')}, ${req.get('Content-Length')} bytes)`);
+                return res.status(400).json({
+                    error: 'Invalid JSON',
+                    message: 'Request body contains invalid JSON'
+                });
+            }
+            if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED' || error.message?.includes('request aborted')) {
+                this.log('WARN', `Request aborted: ${error.message} - ${req.method} ${req.path} (${req.get('Content-Type')}, ${req.get('Content-Length')} bytes)`);
+                // Don't send response for aborted requests - client is gone
+                return;
+            }
+            next(error);
+        });
 
         // Authentication middleware
         this.app.use((req, res, next) => {
@@ -286,7 +334,7 @@ export class GenericUIServer {
                     session: this.session,
                     schema: this.schema,
                     initialData: [],
-                    config: { pollInterval: this.pollInterval, apiBase: '/api' },
+                    config: { pollInterval: this.pollInterval, apiBase: this.determineApiBasePath() },
                     nonce: res.locals.nonce
                 }));
             }
@@ -451,7 +499,7 @@ export class GenericUIServer {
         });
 
         // Extend session
-        this.app.post('/api/extend-session', (req, res) => {
+        this.app.post('/api/extend-session', async (req, res) => {
             const { minutes = 30 } = req.body;
 
             if (typeof minutes !== 'number' || minutes < 5 || minutes > 120) {
@@ -475,7 +523,7 @@ export class GenericUIServer {
             this.session.lastActivity = new Date();
 
             // CRITICAL FIX: Also update the SessionManager's authoritative copy
-            const sessionExtended = this.sessionManager.extendSession(this.session.id, minutes);
+            const sessionExtended = await this.sessionManager.extendSessionByToken(this.session.token, minutes);
 
             if (!sessionExtended) {
                 // If SessionManager couldn't extend, revert local changes
@@ -508,7 +556,7 @@ export class GenericUIServer {
             initialData,
             config: {
                 pollInterval: this.pollInterval,
-                apiBase: '/api'
+                apiBase: this.determineApiBasePath()
             },
             nonce
         };
@@ -701,6 +749,149 @@ export class GenericUIServer {
         }
 
         return false;
+    }
+
+    /**
+     * Determine the static base path based on session type
+     * - Gateway mode: /mcp/:token/static (for proxy routing)
+     * - Direct mode: /static (traditional path)
+     */
+    private determineStaticBasePath(): string {
+        // Check if this is a gateway session by examining the session token and URL structure
+        const isGatewaySession = this.session.token &&
+            this.session.url &&
+            this.session.url.includes('/mcp/') &&
+            this.session.url.includes(this.session.token);
+
+        if (isGatewaySession) {
+            // Extract token from session and create gateway static path
+            const proxyPrefix = process.env.MCP_WEB_UI_PROXY_PREFIX || '/mcp';
+            return `${proxyPrefix}/${this.session.token}/static`;
+        } else {
+            // Direct mode - use traditional static path
+            return '/static';
+        }
+    }
+
+    /**
+     * Determine the API base path based on session type
+     * - Gateway mode: /api (relative path for proxy routing)
+     * - Direct mode: /api (traditional path)
+     */
+    private determineApiBasePath(): string {
+        // Check if this is a gateway session by examining the session token and URL structure
+        const isGatewaySession = this.session.token &&
+            this.session.url &&
+            this.session.url.includes('/mcp/') &&
+            this.session.url.includes(this.session.token);
+
+        if (isGatewaySession) {
+            // Gateway mode - use full gateway API path
+            // Frontend needs to call the gateway with the full path
+            const proxyPrefix = process.env.MCP_WEB_UI_PROXY_PREFIX || '/mcp';
+            return `${proxyPrefix}/${this.session.token}/api`;
+        } else {
+            // Direct mode - use traditional API path
+            return '/api';
+        }
+    }
+
+    /**
+     * Register this server with the gateway
+     */
+    private async registerWithGateway(): Promise<void> {
+        // Only register if using gateway mode
+        if (!this.config.proxyMode) {
+            this.log('INFO', 'Not in proxy mode, skipping gateway registration');
+            return;
+        }
+
+        const gatewayUrl = process.env.MCP_WEB_UI_GATEWAY_URL || 'http://localhost:3081';
+        const serverName = this.config.serverName || this.schema.title.toLowerCase().replace(/\s+/g, '-');
+
+        // Get the backend host that the gateway can reach
+        const backendHost = this.sessionManager['resolveBackendHost'](); // Access private method
+
+        const registrationData = {
+            serverName,
+            backend: {
+                type: 'tcp',
+                host: backendHost,
+                port: this.session.port
+            },
+            metadata: {
+                schemaTitle: this.schema.title,
+                version: '2.0.0',
+                features: ['api', 'static', 'websocket'],
+                registeredBy: 'GenericUIServer',
+                pid: process.pid
+            }
+        };
+
+        try {
+            this.log('INFO', `Registering with gateway at ${gatewayUrl}/register-server`);
+            this.log('INFO', `Server registration data: ${JSON.stringify(registrationData, null, 2)}`);
+
+            const response = await fetch(`${gatewayUrl}/register-server`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(registrationData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Gateway registration failed: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            this.log('INFO', `✅ Successfully registered with gateway: ${JSON.stringify(result)}`);
+
+            // Start heartbeat to keep registration alive
+            this.startGatewayHeartbeat(gatewayUrl, serverName);
+
+        } catch (error: any) {
+            this.log('ERROR', `Failed to register with gateway: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Start periodic heartbeat to gateway
+     */
+    private startGatewayHeartbeat(gatewayUrl: string, serverName: string): void {
+        const heartbeatInterval = 30000; // 30 seconds
+
+        setInterval(async () => {
+            try {
+                // Send heartbeat by re-registering (updates lastHeartbeat)
+                const backendHost = this.sessionManager['resolveBackendHost']();
+
+                const heartbeatData = {
+                    serverName,
+                    backend: {
+                        type: 'tcp',
+                        host: backendHost,
+                        port: this.session.port
+                    },
+                    metadata: {
+                        schemaTitle: this.schema.title,
+                        lastHeartbeat: new Date().toISOString(),
+                        uptime: Date.now() - this.session.startTime.getTime()
+                    }
+                };
+
+                const response = await fetch(`${gatewayUrl}/register-server`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(heartbeatData)
+                });
+
+                if (!response.ok) {
+                    this.log('WARN', `Gateway heartbeat failed: ${response.statusText}`);
+                }
+            } catch (error: any) {
+                this.log('WARN', `Gateway heartbeat error: ${error.message}`);
+            }
+        }, heartbeatInterval);
     }
 
     /**
