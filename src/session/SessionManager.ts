@@ -214,8 +214,26 @@ export class SessionManager {
                 const discoveredServer = await this.discoverRegisteredServer(serverName);
 
                 if (discoveredServer) {
-                    backend = discoveredServer.backend;
-                    this.log('INFO', `[GATEWAY-DEBUG] Found registered server: ${JSON.stringify(backend)}`);
+                    // Check if the discovered server's port is available
+                    const discoveredPort = discoveredServer.backend.port;
+                    if (discoveredPort && this.usedPorts.has(discoveredPort)) {
+                        this.log('WARN', `[GATEWAY-DEBUG] Discovered server port ${discoveredPort} is already in use, allocating new port`);
+                        // Allocate a new port instead
+                        allocatedPort = this.allocatePort();
+                        const resolvedBackendHost = this.resolveBackendHost();
+                        backend = {
+                            type: 'tcp',
+                            host: resolvedBackendHost,
+                            port: allocatedPort
+                        };
+                    } else {
+                        backend = discoveredServer.backend;
+                        // Mark the discovered port as used
+                        if (discoveredPort) {
+                            this.usedPorts.add(discoveredPort);
+                        }
+                        this.log('INFO', `[GATEWAY-DEBUG] Using discovered server: ${JSON.stringify(backend)}`);
+                    }
                 } else {
                     this.log('WARN', `[GATEWAY-DEBUG] No registered server found for ${serverName}, falling back to port allocation`);
                     // Fallback to old behavior
@@ -273,6 +291,15 @@ export class SessionManager {
 
             const token = result.token;
 
+            // Check if we already have a local session with this token (from previous gateway call)
+            const existingLocalSession = Array.from(this.localSessions.values())
+                .find(session => session.token === token);
+
+            if (existingLocalSession) {
+                this.log('INFO', `[GATEWAY-DEBUG] Found existing local session for token ${token.substring(0, 20)}..., reusing session ${existingLocalSession.id}`);
+                return existingLocalSession;
+            }
+
             // Generate URL with gateway token
             const proxyPrefix = process.env.MCP_WEB_UI_PROXY_PREFIX || '/mcp';
             const sessionUrl = `${this.protocol}://${this.baseUrl}${proxyPrefix}/${token}/`;
@@ -288,6 +315,9 @@ export class SessionManager {
                 expiresAt: new Date(Date.now() + 30 * 60 * 1000),
                 isActive: true
             };
+
+            // Store the session in local memory for future reuse
+            this.localSessions.set(session.id, session);
 
             this.log('INFO', `Created gateway session ${session.id} for user ${userId}`);
             return session;

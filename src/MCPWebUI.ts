@@ -117,9 +117,36 @@ export class MCPWebUI<T = any> {
     private async cleanupExpiredSessions(): Promise<void> {
         if (this.sessionManager.isProxyMode()) {
             // In proxy mode, MongoDB TTL handles expiration automatically
-            // We just need to clean up local UI servers that may be orphaned
+            // We need to clean up local UI servers that may be orphaned
+            const activeSessions = await this.sessionManager.getActiveSessions();
+            const activeSessionIds = new Set(activeSessions.map(s => s.id));
+
+            // Find orphaned UI servers (servers running but no corresponding active session)
+            const orphanedServers: string[] = [];
+            for (const [sessionId, uiServer] of this.activeServers.entries()) {
+                if (!activeSessionIds.has(sessionId)) {
+                    orphanedServers.push(sessionId);
+                }
+            }
+
+            if (orphanedServers.length > 0) {
+                this.log('INFO', `Found ${orphanedServers.length} orphaned UI servers, cleaning up...`);
+                for (const sessionId of orphanedServers) {
+                    const uiServer = this.activeServers.get(sessionId);
+                    if (uiServer) {
+                        try {
+                            await uiServer.stop();
+                            this.activeServers.delete(sessionId);
+                            this.log('INFO', `Cleaned up orphaned UI server for session ${sessionId}`);
+                        } catch (error) {
+                            this.log('ERROR', `Failed to stop orphaned UI server ${sessionId}: ${error}`);
+                        }
+                    }
+                }
+            }
+
             const stats = await this.sessionManager.getStats();
-            this.log('INFO', `Proxy mode active sessions: ${stats.totalActiveSessions || 0}`);
+            this.log('INFO', `Proxy mode active sessions: ${stats.totalActiveSessions || 0}, UI servers: ${this.activeServers.size}`);
         } else {
             // Direct mode: manual cleanup
             const now = new Date();
@@ -152,12 +179,34 @@ export class MCPWebUI<T = any> {
             this.log('INFO', `[SESSION-CREATION] Calling sessionManager.createSession(${userId})`);
             const session = await this.sessionManager.createSession(userId);
 
-
             // Debug: Log what SessionManager actually returned
             this.log('INFO', `[SESSION-CREATION] SessionManager returned session: ID=${session.id}, Token=${session.token}, URL=${session.url}, Port=${session.port}`);
 
-            // Always create UI server - the gateway needs it to proxy to
-            this.log('INFO', `[SESSION-CREATION] Creating UI server on port ${session.port}`);
+            // Check if we already have an active UI server for this session
+            const existingServer = this.activeServers.get(session.id);
+            if (existingServer) {
+                this.log('INFO', `[SESSION-CREATION] Reusing existing UI server for session ${session.id} on port ${session.port}`);
+                return session;
+            }
+
+            // Additional check: Look for any UI servers that might be using the same port
+            // This can happen if session reuse didn't work properly or there's a mismatch
+            this.log('INFO', `[SESSION-CREATION] Checking for port conflicts on ${session.port}. Active servers: ${this.activeServers.size}`);
+            const conflictingServers: string[] = [];
+
+            for (const [activeSessionId, activeServer] of this.activeServers.entries()) {
+                this.log('INFO', `[SESSION-CREATION] Checking active session ${activeSessionId}`);
+                // We'll attempt to create the server and catch the port conflict
+            }
+
+            // If we have multiple servers, it suggests there might be orphaned ones
+            if (this.activeServers.size > 0) {
+                this.log('WARN', `[SESSION-CREATION] Found ${this.activeServers.size} active UI servers before creating new one. This might indicate cleanup issues.`);
+                this.log('WARN', `[SESSION-CREATION] Active session IDs: ${Array.from(this.activeServers.keys()).join(', ')}`);
+            }
+
+            // Create UI server only if we don't have one already
+            this.log('INFO', `[SESSION-CREATION] Creating new UI server on port ${session.port}`);
             const uiConfig = this.createUIServerConfig();
 
             const uiServer = new GenericUIServer(
@@ -172,13 +221,47 @@ export class MCPWebUI<T = any> {
                 this.config.protocol as 'http' | 'https'
             );
 
-            await uiServer.start();
-            this.activeServers.set(session.id, uiServer);
+            try {
+                await uiServer.start();
+                this.activeServers.set(session.id, uiServer);
 
+                this.log('INFO', `[SESSION-CREATION] UI server started successfully for user ${userId}: ${session.url}`);
+                this.log('INFO', `[SESSION-CREATION] Session details: ID=${session.id}, Token=${session.token}, Port=${session.port}`);
+                return session;
+            } catch (error: any) {
+                if (error.message && error.message.includes('already in use')) {
+                    this.log('WARN', `[SESSION-CREATION] Port ${session.port} conflict detected. Attempting to clean up conflicting servers...`);
 
-            this.log('INFO', `[SESSION-CREATION] UI server started successfully for user ${userId}: ${session.url}`);
-            this.log('INFO', `[SESSION-CREATION] Session details: ID=${session.id}, Token=${session.token}, Port=${session.port}`);
-            return session;
+                    // Find and stop any servers that might be conflicting
+                    let cleanedUp = false;
+                    for (const [activeSessionId, activeServer] of this.activeServers.entries()) {
+                        try {
+                            this.log('INFO', `[SESSION-CREATION] Stopping potentially conflicting server: ${activeSessionId}`);
+                            await activeServer.stop();
+                            this.activeServers.delete(activeSessionId);
+                            cleanedUp = true;
+                            this.log('INFO', `[SESSION-CREATION] Successfully stopped conflicting server ${activeSessionId}`);
+                        } catch (stopError) {
+                            this.log('ERROR', `[SESSION-CREATION] Failed to stop server ${activeSessionId}: ${stopError}`);
+                        }
+                    }
+
+                    if (cleanedUp) {
+                        this.log('INFO', `[SESSION-CREATION] Retrying UI server creation after cleanup...`);
+                        // Retry creating the server
+                        try {
+                            await uiServer.start();
+                            this.activeServers.set(session.id, uiServer);
+                            this.log('INFO', `[SESSION-CREATION] UI server started successfully after cleanup for user ${userId}: ${session.url}`);
+                            return session;
+                        } catch (retryError) {
+                            this.log('ERROR', `[SESSION-CREATION] Retry failed: ${retryError}`);
+                            throw retryError;
+                        }
+                    }
+                }
+                throw error;
+            }
         } catch (error: any) {
             this.log('ERROR', `Failed to create UI session for user ${userId}: ${error}`);
             throw error;

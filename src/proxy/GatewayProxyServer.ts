@@ -164,13 +164,22 @@ export class GatewayProxyServer {
                     });
                 }
 
-                // Create a new session with JWT token
-                const session = await this.tokenRegistry.createSession({
-                    userId,
-                    serverName,
-                    backend,
-                    ttlMinutes
-                });
+                // Check for existing active session first
+                const existingSession = await this.tokenRegistry.findActiveSession(userId, serverName);
+
+                let session;
+                if (existingSession) {
+                    this.log('info', `Reusing existing session for user ${userId}, server ${serverName}`);
+                    session = existingSession;
+                } else {
+                    // Create a new session with JWT token
+                    session = await this.tokenRegistry.createSession({
+                        userId,
+                        serverName,
+                        backend,
+                        ttlMinutes
+                    });
+                }
 
                 this.log('info', `Created session for user ${userId}, server ${serverName}`);
                 res.json({

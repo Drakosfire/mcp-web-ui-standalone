@@ -88,6 +88,40 @@ export class TokenRegistry {
 
 
     /**
+     * Find an existing active session for a user and server
+     */
+    async findActiveSession(userId: string, serverName: string): Promise<EphemeralSession | null> {
+        try {
+            const session = await this.collection.findOne({
+                userId,
+                serverName,
+                expiresAt: { $gt: new Date() } // Only active (non-expired) sessions
+            }, {
+                sort: { createdAt: -1 } // Get the most recent one
+            });
+
+            if (session) {
+                // Update last accessed time
+                await this.collection.updateOne(
+                    { token: session.token },
+                    { $set: { lastAccessedAt: new Date() } }
+                );
+
+                this.log('info', `[TokenRegistry] Found existing session for user ${userId}, server ${serverName}`, {
+                    token: session.token.substring(0, 16) + '...',
+                    createdAt: session.createdAt.toISOString(),
+                    expiresAt: session.expiresAt.toISOString()
+                });
+            }
+
+            return session;
+        } catch (error) {
+            this.log('error', `[TokenRegistry] Failed to find active session: ${error}`);
+            return null;
+        }
+    }
+
+    /**
      * Create a new ephemeral session with secure token
      */
     async createSession(options: CreateSessionOptions): Promise<EphemeralSession> {
