@@ -187,6 +187,16 @@ export class SessionManager {
             this.log('INFO', `[GATEWAY-DEBUG] Starting gateway session creation for user ${userId}`);
             this.log('INFO', `[GATEWAY-DEBUG] Gateway URL: ${gatewayUrl}`);
 
+            // CRITICAL: Check gateway health before attempting any gateway operations
+            const gatewayHealthy = await this.validateGatewayHealth(gatewayUrl);
+            if (!gatewayHealthy) {
+                this.log('WARN', `[GATEWAY-DEBUG] Gateway is not available, clearing stale sessions and falling back to direct mode`);
+                // Clear all local sessions and used ports when gateway is down
+                // This prevents reusing ports from previous gateway sessions that are outside the configured range
+                this.clearStaleSessions();
+                return this.createDirectSession(userId);
+            }
+
             // Cleanup expired sessions for this user
             const expiredSessions = Array.from(this.localSessions.entries())
                 .filter(([sessionId, session]) => session.userId === userId && session.expiresAt <= new Date());
@@ -206,7 +216,7 @@ export class SessionManager {
             }
 
             // Try to discover existing registered server first
-            const serverName = 'todoodles'; // This should be configurable
+            const serverName = this.serverName || 'mcp-webui';
             let backend;
 
             try {
@@ -332,8 +342,12 @@ export class SessionManager {
                 userId: userId
             });
             this.log('INFO', `[GATEWAY-DEBUG] Falling back to direct session creation`);
+
+            // Clear stale sessions and ports when gateway operations fail
+            // This ensures we don't reuse ports from failed gateway sessions
+            this.clearStaleSessions();
+
             // Fallback to direct session
-            // In gateway mode, no ports were allocated, so no cleanup needed
             try {
                 const fallback = await this.createDirectSession(userId);
                 return fallback;
@@ -374,6 +388,54 @@ export class SessionManager {
 
         this.log('WARN', `[GATEWAY-DEBUG] Falling back to 127.0.0.1 for backend host`);
         return '127.0.0.1';
+    }
+
+    /**
+     * Validate gateway health before attempting operations
+     */
+    private async validateGatewayHealth(gatewayUrl: string): Promise<boolean> {
+        try {
+            this.log('INFO', `[GATEWAY-HEALTH] Checking gateway health at ${gatewayUrl}/health`);
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+            const response = await fetch(`${gatewayUrl}/health`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            const isHealthy = response.ok;
+            this.log('INFO', `[GATEWAY-HEALTH] Gateway health check result: ${isHealthy ? 'HEALTHY' : 'UNHEALTHY'} (status: ${response.status})`);
+
+            return isHealthy;
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                this.log('WARN', `[GATEWAY-HEALTH] Gateway health check timed out after 5 seconds`);
+            } else {
+                this.log('WARN', `[GATEWAY-HEALTH] Gateway health check failed: ${error.message}`);
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Clear stale sessions and ports when gateway is unavailable
+     * This prevents reusing ports from previous gateway sessions that may be outside the configured range
+     */
+    private clearStaleSessions(): void {
+        this.log('INFO', `[GATEWAY-CLEANUP] Clearing ${this.localSessions.size} stale sessions and ${this.usedPorts.size} used ports`);
+
+        // Clear all local sessions
+        this.localSessions.clear();
+
+        // Clear all used ports - this is critical to prevent reusing ports from previous gateway sessions
+        this.usedPorts.clear();
+
+        this.log('INFO', `[GATEWAY-CLEANUP] Stale sessions and ports cleared successfully`);
     }
 
     /**
@@ -491,9 +553,9 @@ export class SessionManager {
 
             if (useGateway && proxyPrefix && proxyPrefix.trim().length > 0) {
                 // Use gateway proxy route: /mcp/<token>/ (token-based routing)
-                // The token will be provided by the gateway after session creation
-                sessionUrl = `${this.protocol}://${this.baseUrl}${proxyPrefix}/<token>/`;
-                this.log('INFO', `Using gateway proxy route: ${sessionUrl}`);
+                // In direct mode fallback, we still use the actual token
+                sessionUrl = `${this.protocol}://${this.baseUrl}${proxyPrefix}/${token}/`;
+                this.log('INFO', `Using gateway proxy route (direct fallback): ${sessionUrl}`);
             } else if (proxyPrefix && proxyPrefix.trim().length > 0) {
                 // Use nginx proxy route: /mcp/ui/<port>/?token=... (legacy)
                 sessionUrl = `${this.protocol}://${this.baseUrl}${proxyPrefix}/${port}/?token=${token}`;
