@@ -6,6 +6,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-01-06
+
+### 🔑 **Composite Key Session Isolation Release**
+
+#### ✨ **New Features**
+- **Composite Session Keys**: Implemented `userId:serverName:serverType` composite keys for complete session isolation
+  - Each MCP server now maintains isolated sessions in MongoDB
+  - Prevents cross-server session conflicts and "Bad Gateway" errors
+  - Supports unlimited MCP servers per user without interference
+- **Enhanced TokenRegistry**: Updated MongoDB storage with composite key support
+  - Added `serverName` and `serverType` fields to `EphemeralSession` interface
+  - New `generateSessionKey()` method for composite key generation
+  - Updated `findActiveSession()` to use composite keys instead of user-only lookup
+  - Added MongoDB index for `sessionKey` field for efficient queries
+- **Gateway Proxy Improvements**: Enhanced session creation and routing
+  - Updated `/create-session` endpoint to accept `serverType` parameter
+  - Improved session lookup using composite keys
+  - Better logging with composite key information
+
+#### 🔧 **Technical Changes**
+- **SessionManager**: Updated to use composite keys for session management
+  - Added `generateSessionKey()` and `findSessionByCompositeKey()` methods
+  - Updated session creation to include server context
+  - Enhanced session lookup logic for proper isolation
+- **GatewayProxyServer**: Modified to support composite key session creation
+  - Updated request body to include `serverType` parameter
+  - Enhanced logging to show composite key usage
+- **Type Definitions**: Extended `WebUISession` interface with server context fields
+
+#### 🐛 **Bug Fixes**
+- **Fixed Cross-Server Session Conflicts**: Resolved issue where multiple MCP servers would share sessions
+- **Eliminated "Bad Gateway" Errors**: Sessions no longer route to wrong backends
+- **Improved Session Isolation**: Each MCP server maintains completely separate sessions
+
+#### 📚 **Documentation**
+- **Updated Integration Guide**: Added comprehensive composite key configuration requirements
+- **Enhanced Gateway README**: Added session isolation section with examples
+- **Migration Instructions**: Updated to include server name configuration requirements
+
+#### ⚠️ **Breaking Changes**
+- **Required Server Name Configuration**: All MCP servers must now specify explicit `serverName` in their `MCPWebUI` configuration
+- **Composite Key Format**: Sessions now use `userId:serverName:serverType` format instead of user-only keys
+
+#### 🔄 **Migration Required**
+```typescript
+// ✅ REQUIRED: Add unique serverName to each MCP server
+const webUI = new MCPWebUI({
+    // ... existing config
+    serverName: 'your-unique-server-name' // Prevents session conflicts
+});
+```
+
+## [1.1.3] - 2025-08-30
+
+### 🔧 **Port Blocking Feature Release**
+
+#### ✨ **New Features**
+- **Blocked Ports Configuration**: Added support for blocking specific ports during ephemeral web UI allocation
+  - New `blockedPorts?: number[]` configuration option in `MCPWebUIConfig`
+  - Environment variable support via `MCP_WEB_UI_BLOCKED_PORTS` (comma-separated)
+  - Automatic port skipping during allocation to avoid conflicts with other services
+  - Perfect for blocking ports like Ollama (11434) or other development services
+- **Enhanced Port Validation**: Improved port range validation and error handling
+  - Validation that blocked ports are within the configured port range
+  - Clear error messages showing blocked ports when allocation fails
+  - Safe parsing of environment variables with invalid value filtering
+
+#### 🔧 **Bug Fixes**
+- **Port Conflict Resolution**: Resolved Docker port binding conflicts with services like Ollama
+  - Framework now skips blocked ports during allocation
+  - Prevents "address already in use" errors in containerized environments
+  - Better integration with development environments using multiple services
+
+#### 🛠️ **Developer Experience**
+- **Flexible Port Management**: More control over port allocation in complex environments
+  - Easy configuration via environment variables or direct configuration
+  - Backward compatibility maintained for existing deployments
+  - Clear documentation and usage examples
+
+#### 🔒 **Security & Stability**
+- **Port Range Security**: Enhanced security through controlled port allocation
+- **Error Handling**: Better error messages for debugging port allocation issues
+- **Validation**: Input validation prevents invalid port configurations
+
+---
+
 ## [1.1.0] - 2025-08-17
 
 ### 🔧 **Protocol & Port Range Configuration Release**

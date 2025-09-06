@@ -155,6 +155,7 @@ export class GatewayProxyServer {
             }
 
             try {
+
                 const { userId, serverName, serverType, backend, ttlMinutes = 30 } = req.body;
 
                 if (!userId || !serverName || !backend) {
