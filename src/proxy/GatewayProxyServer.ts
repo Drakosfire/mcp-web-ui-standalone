@@ -155,7 +155,7 @@ export class GatewayProxyServer {
             }
 
             try {
-                const { userId, serverName, backend, ttlMinutes = 30 } = req.body;
+                const { userId, serverName, serverType, backend, ttlMinutes = 30 } = req.body;
 
                 if (!userId || !serverName || !backend) {
                     return res.status(400).json({
@@ -164,18 +164,20 @@ export class GatewayProxyServer {
                     });
                 }
 
-                // Check for existing active session first
-                const existingSession = await this.tokenRegistry.findActiveSession(userId, serverName);
+                // Check for existing active session first using composite key
+                const existingSession = await this.tokenRegistry.findActiveSession(userId, serverName, serverType);
 
                 let session;
                 if (existingSession) {
-                    this.log('info', `Reusing existing session for user ${userId}, server ${serverName}`);
+                    const sessionKey = `${userId}:${serverName}:${serverType || 'mcp-webui'}`;
+                    this.log('info', `Reusing existing session for composite key ${sessionKey}`);
                     session = existingSession;
                 } else {
                     // Create a new session with JWT token
                     session = await this.tokenRegistry.createSession({
                         userId,
                         serverName,
+                        serverType,
                         backend,
                         ttlMinutes
                     });

@@ -33,7 +33,7 @@ export async function createTodoodlesServer(userId: string, pollInterval: number
 
     // 2. Create session and schema (same as before)
     const sessionManager = new SessionManager();
-    const session = sessionManager.createSession(userId);
+    const session = await sessionManager.createSession(userId);
 
     const schema: UISchema = {
         title: 'Your Todoodles',
@@ -115,7 +115,7 @@ export async function createMultiAppServer(userId: string) {
 
     // The server automatically detects which theme to load based on schema.title
     const sessionManager = new SessionManager();
-    const session = sessionManager.createSession(userId);
+    const session = await sessionManager.createSession(userId);
 
     // This schema will trigger todoodles theme loading
     const todoSchema: UISchema = {

@@ -149,6 +149,34 @@ export class SessionManager {
     }
 
     /**
+     * Generate composite session key for proper session isolation
+     * Format: userId:serverName:serverType
+     */
+    private generateSessionKey(userId: string, serverName?: string, serverType?: string): string {
+        const safeServerName = serverName || this.serverName || 'mcp-webui';
+        const safeServerType = serverType || 'mcp-webui';
+        return `${userId}:${safeServerName}:${safeServerType}`;
+    }
+
+    /**
+     * Find existing session by composite key
+     */
+    private findSessionByCompositeKey(userId: string, serverName?: string, serverType?: string): WebUISession | null {
+        const sessionKey = this.generateSessionKey(userId, serverName, serverType);
+
+        for (const session of this.localSessions.values()) {
+            if (session.isActive && session.expiresAt > new Date()) {
+                const sessionSessionKey = this.generateSessionKey(session.userId, session.serverName, session.serverType);
+                if (sessionSessionKey === sessionKey) {
+                    return session;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Create a new session for a user
      * Automatically terminates any existing session for the same user
      */
@@ -206,13 +234,17 @@ export class SessionManager {
                 this.localSessions.delete(sessionId);
             }
 
-            // Check for existing active session for this user
-            const existingSession = Array.from(this.localSessions.values())
-                .find(session => session.userId === userId && session.isActive && session.expiresAt > new Date());
+            // Check for existing active session for this user+server combination
+            const sessionKey = this.generateSessionKey(userId, this.serverName, 'mcp-webui');
+            this.log('INFO', `[GATEWAY-DEBUG] Looking for existing session with composite key: ${sessionKey}`);
+
+            const existingSession = this.findSessionByCompositeKey(userId, this.serverName, 'mcp-webui');
 
             if (existingSession) {
-                this.log('INFO', `[GATEWAY-DEBUG] Reusing existing session for user ${userId}: ${existingSession.token.substring(0, 20)}...`);
+                this.log('INFO', `[GATEWAY-DEBUG] Reusing existing session for composite key ${sessionKey}: ${existingSession.token.substring(0, 20)}...`);
                 return existingSession;
+            } else {
+                this.log('INFO', `[GATEWAY-DEBUG] No existing session found for composite key ${sessionKey}, creating new session`);
             }
 
             // Try to discover existing registered server first
@@ -270,6 +302,7 @@ export class SessionManager {
             const requestBody = {
                 userId,
                 serverName,
+                serverType: 'mcp-webui',
                 backend,
                 ttlMinutes: 30
             };
@@ -323,13 +356,16 @@ export class SessionManager {
                 startTime: new Date(),
                 lastActivity: new Date(),
                 expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-                isActive: true
+                isActive: true,
+                serverName: this.serverName || 'mcp-webui',
+                serverType: 'mcp-webui'
             };
 
             // Store the session in local memory for future reuse
             this.localSessions.set(session.id, session);
 
-            this.log('INFO', `Created gateway session ${session.id} for user ${userId}`);
+            const createdSessionKey = this.generateSessionKey(userId, this.serverName, 'mcp-webui');
+            this.log('INFO', `Created gateway session ${session.id} for composite key ${createdSessionKey} (user: ${userId}, server: ${this.serverName})`);
             return session;
         } catch (error) {
 
@@ -495,10 +531,11 @@ export class SessionManager {
             this.userSessionLimits.set(userId, { count: 1, lastCreated: sessionTime });
         }
 
-        // Check for and terminate any existing session for this user
-        const existingSession = await this.getSessionByUserId(userId);
+        // Check for and terminate any existing session for this user+server combination
+        const existingSession = this.findSessionByCompositeKey(userId, this.serverName, 'mcp-webui');
         if (existingSession) {
-            this.log('INFO', `Terminating existing session ${existingSession.id} for user ${userId} before creating new one`);
+            const sessionKey = this.generateSessionKey(userId, this.serverName, 'mcp-webui');
+            this.log('INFO', `Terminating existing session ${existingSession.id} for composite key ${sessionKey} before creating new one`);
             await this.terminateSession(existingSession.id);
         }
 
@@ -534,7 +571,9 @@ export class SessionManager {
                 startTime: now,
                 lastActivity: now,
                 expiresAt,
-                isActive: true
+                isActive: true,
+                serverName: this.serverName || 'mcp-webui',
+                serverType: 'mcp-webui'
             };
 
             // Store locally for port management
@@ -578,7 +617,9 @@ export class SessionManager {
                 startTime: now,
                 lastActivity: now,
                 expiresAt,
-                isActive: true
+                isActive: true,
+                serverName: this.serverName || 'mcp-webui',
+                serverType: 'mcp-webui'
             };
 
             this.localSessions.set(sessionId, session);
@@ -653,7 +694,9 @@ export class SessionManager {
     }
 
     /**
-     * Get session by user ID
+     * Get session by user ID (returns first active session for user)
+     * Note: This method is deprecated in favor of composite key lookups
+     * Use findSessionByCompositeKey for proper server isolation
      */
     async getSessionByUserId(userId: string): Promise<WebUISession | null> {
         if (this.proxyMode && this.tokenRegistry) {
@@ -680,10 +723,12 @@ export class SessionManager {
                 startTime: proxySession.createdAt,
                 lastActivity: proxySession.lastAccessedAt,
                 expiresAt: proxySession.expiresAt,
-                isActive: true
+                isActive: true,
+                serverName: this.serverName || 'mcp-webui',
+                serverType: 'mcp-webui'
             };
         } else {
-            // Direct mode: Search local sessions
+            // Direct mode: Search local sessions (returns first active session)
             for (const session of this.localSessions.values()) {
                 if (session.userId === userId && session.isActive) {
                     return session;

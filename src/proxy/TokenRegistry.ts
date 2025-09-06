@@ -6,6 +6,8 @@ export interface EphemeralSession {
     token: string;
     userId: string;
     serverName: string;
+    serverType?: string; // Additional context for session isolation
+    sessionKey?: string; // Composite key for efficient lookup
     backend: {
         type: 'tcp' | 'unix' | 'gateway';
         host?: string | null;
@@ -22,6 +24,7 @@ export interface EphemeralSession {
 export interface CreateSessionOptions {
     userId: string;
     serverName: string;
+    serverType?: string; // Additional context for session isolation
     backend: EphemeralSession['backend'];
     ttlMinutes?: number;
     scopes?: string[];
@@ -77,6 +80,7 @@ export class TokenRegistry {
             await this.collection.createIndex({ token: 1 }, { unique: true });
             await this.collection.createIndex({ userId: 1 });
             await this.collection.createIndex({ serverName: 1 });
+            await this.collection.createIndex({ sessionKey: 1 }, { unique: true }); // Composite key index
             await this.collection.createIndex({ createdAt: 1 });
 
             this.log('info', '[TokenRegistry] MongoDB indexes created successfully');
@@ -85,19 +89,27 @@ export class TokenRegistry {
         }
     }
 
+    /**
+     * Generate composite session key for proper session isolation
+     * Format: userId:serverName:serverType
+     */
+    private generateSessionKey(userId: string, serverName: string, serverType?: string): string {
+        const safeServerType = serverType || 'mcp-webui';
+        return `${userId}:${serverName}:${safeServerType}`;
+    }
+
 
 
     /**
-     * Find an existing active session for a user and server
+     * Find an existing active session for a user and server using composite key
      */
-    async findActiveSession(userId: string, serverName: string): Promise<EphemeralSession | null> {
+    async findActiveSession(userId: string, serverName: string, serverType?: string): Promise<EphemeralSession | null> {
         try {
+            const sessionKey = this.generateSessionKey(userId, serverName, serverType);
+
             const session = await this.collection.findOne({
-                userId,
-                serverName,
+                sessionKey,
                 expiresAt: { $gt: new Date() } // Only active (non-expired) sessions
-            }, {
-                sort: { createdAt: -1 } // Get the most recent one
             });
 
             if (session) {
@@ -107,11 +119,13 @@ export class TokenRegistry {
                     { $set: { lastAccessedAt: new Date() } }
                 );
 
-                this.log('info', `[TokenRegistry] Found existing session for user ${userId}, server ${serverName}`, {
+                this.log('info', `[TokenRegistry] Found existing session for composite key ${sessionKey}`, {
                     token: session.token.substring(0, 16) + '...',
                     createdAt: session.createdAt.toISOString(),
                     expiresAt: session.expiresAt.toISOString()
                 });
+            } else {
+                this.log('info', `[TokenRegistry] No existing session found for composite key ${sessionKey}`);
             }
 
             return session;
@@ -128,6 +142,7 @@ export class TokenRegistry {
         const {
             userId,
             serverName,
+            serverType,
             backend,
             ttlMinutes = 30,
             scopes = ['view', 'interact'],
@@ -136,11 +151,13 @@ export class TokenRegistry {
 
         const now = new Date();
         const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+        const sessionKey = this.generateSessionKey(userId, serverName, serverType);
 
         // Generate secure token with embedded metadata
         const tokenPayload = {
             userId,
             serverName,
+            serverType: serverType || 'mcp-webui',
             sessionId: crypto.randomUUID(),
             iat: Math.floor(now.getTime() / 1000),
             exp: Math.floor(expiresAt.getTime() / 1000)
@@ -154,6 +171,8 @@ export class TokenRegistry {
             token,
             userId,
             serverName,
+            serverType: serverType || 'mcp-webui',
+            sessionKey,
             backend,
             createdAt: now,
             expiresAt,
@@ -164,7 +183,7 @@ export class TokenRegistry {
 
         await this.collection.insertOne(session);
 
-        this.log('info', `[TokenRegistry] Created session for user ${userId}, server ${serverName}`, {
+        this.log('info', `[TokenRegistry] Created session for composite key ${sessionKey}`, {
             token: token.substring(0, 16) + '...',
             backend: backend.type === 'tcp' ? `${backend.host}:${backend.port}` : backend.socketPath,
             expiresAt: expiresAt.toISOString()

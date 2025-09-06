@@ -11,6 +11,8 @@ export interface WebUISession {
     lastActivity: Date;
     expiresAt: Date;
     isActive: boolean;
+    serverName?: string; // MCP server name for session isolation
+    serverType?: string; // Server type for additional context
 }
 
 // UI Schema definition for configuration-driven interfaces

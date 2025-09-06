@@ -63,11 +63,13 @@ const webUI = new MCPWebUI({
     // Enable gateway mode - servers auto-register with gateway
     baseUrl: process.env.MCP_WEB_UI_BASE_URL,
     portRange: [12000, 13000],
-    serverName: 'my-mcp-server'
+    serverName: 'my-mcp-server' // ✅ REQUIRED: Unique name for session isolation
 });
 
 // Session URLs will automatically use gateway format:
 // http://gateway:3082/mcp/:token/
+// Each server gets isolated sessions with composite keys:
+// userId:my-mcp-server:mcp-webui
 const session = await webUI.createSession(userId);
 ```
 
@@ -120,10 +122,12 @@ location /mcp/ {
 ## 🔐 Security Features
 
 - **JWT Tokens** with embedded user context and expiration
+- **Composite Session Keys** for server isolation (`userId:serverName:serverType`)
 - **MongoDB TTL** for automatic session cleanup
 - **User-based Access Control** with scopes
 - **CORS Configuration** for domain restrictions
 - **Token Validation** on every request
+- **Session Isolation** prevents cross-server session conflicts
 
 ## 🌐 Real-time Communication
 
@@ -153,6 +157,37 @@ curl http://localhost:3081/stats
 DEBUG=true npm run proxy
 ```
 
+## 🔑 Session Isolation with Composite Keys
+
+### **Problem Solved**
+Previously, multiple MCP servers for the same user would share sessions, causing routing conflicts and "Bad Gateway" errors when one server's backend became unavailable.
+
+### **Solution: Composite Session Keys**
+Each session now uses a unique composite key: `userId:serverName:serverType`
+
+```typescript
+// Each server gets isolated sessions
+scheduled-tasks: userId:scheduled-tasks:mcp-webui
+todoodles:       userId:todoodles:mcp-webui  
+grocery-list:    userId:grocery-list:mcp-webui
+movies:          userId:movies:mcp-webui
+```
+
+### **Required Configuration**
+```typescript
+// ✅ REQUIRED: Set unique serverName for each MCP server
+const webUI = new MCPWebUI({
+    // ... other config
+    serverName: 'your-unique-server-name' // Prevents session conflicts
+});
+```
+
+### **Benefits**
+- **No Cross-Server Conflicts**: Each server maintains isolated sessions
+- **Proper Routing**: Gateway routes to correct backend for each server
+- **No "Bad Gateway" Errors**: Sessions don't interfere with each other
+- **Scalable**: Supports unlimited MCP servers per user
+
 ## 🔄 Migration from Direct Ports
 
 ### 1. Update Docker Compose
@@ -177,8 +212,14 @@ MCP_WEB_UI_PROXY_MODE=true
 MCP_WEB_UI_MONGO_URL=mongodb://localhost:27017
 ```
 
-### 3. No Code Changes Required!
-The `MCPWebUI` class automatically detects proxy mode and generates appropriate URLs.
+### 3. Add Server Names to MCP Servers
+```typescript
+// ✅ REQUIRED: Add unique serverName to each MCP server
+const webUI = new MCPWebUI({
+    // ... existing config
+    serverName: 'your-server-name' // Unique per server
+});
+```
 
 ## 📁 File Structure
 
@@ -244,8 +285,10 @@ Gateway forwards response back to client
 
 - **Self-Registration**: MCP servers register `{serverName, host, port}` on startup
 - **Smart Discovery**: Gateway session creation queries registered servers first
+- **Composite Session Keys**: Unique session isolation using `userId:serverName:serverType`
 - **Robust Proxying**: All HTTP methods with proper request body forwarding
 - **Token Security**: JWT tokens with MongoDB TTL and validation
+- **Session Isolation**: Prevents cross-server session conflicts and routing errors
 - **Production Ready**: Used in live deployments with nginx reverse proxy
 
 ## 📚 Next Steps
