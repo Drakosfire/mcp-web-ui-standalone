@@ -371,8 +371,10 @@ export class GatewayProxyServer {
                 const session = (req as any).mcpSession as EphemeralSession;
 
                 if (session.backend.type === 'tcp') {
-                    const protocol = req.secure ? 'https' : 'http';
-                    return `${protocol}://${session.backend.host}:${session.backend.port}`;
+                    // Always use HTTP for internal backend communication
+                    // The gateway handles HTTPS termination, backends run HTTP
+                    const protocol = 'http';
+                    return `http://${session.backend.host}:${session.backend.port}`;
                 } else if (session.backend.type === 'unix') {
                     return `http://unix:${session.backend.socketPath}:`;
                 }
@@ -458,8 +460,10 @@ export class GatewayProxyServer {
                     if (!session.backend.host || !session.backend.port) {
                         throw new Error('TCP backend missing host or port');
                     }
-                    const protocol = req.secure ? 'https' : 'http';
-                    return `${protocol}://${session.backend.host}:${session.backend.port}`;
+                    // Always use HTTP for internal backend communication
+                    // The gateway handles HTTPS termination, backends run HTTP
+                    const protocol = 'http';
+                    return `http://${session.backend.host}:${session.backend.port}`;
                 } else if (session.backend.type === 'unix') {
                     if (!session.backend.socketPath) {
                         throw new Error('Unix backend missing socket path');
@@ -647,8 +651,10 @@ export class GatewayProxyServer {
                     if (!session.backend.host || !session.backend.port) {
                         throw new Error('TCP backend missing host or port');
                     }
-                    const protocol = req.secure ? 'https' : 'http';
-                    return `${protocol}://${session.backend.host}:${session.backend.port}`;
+                    // Always use HTTP for internal backend communication
+                    // The gateway handles HTTPS termination, backends run HTTP
+                    const protocol = 'http';
+                    return `http://${session.backend.host}:${session.backend.port}`;
                 } else if (session.backend.type === 'unix') {
                     // For UNIX sockets, we need special handling
                     if (!session.backend.socketPath) {
