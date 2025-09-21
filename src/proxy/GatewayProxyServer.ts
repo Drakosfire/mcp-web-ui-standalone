@@ -654,7 +654,7 @@ export class GatewayProxyServer {
                     // Always use HTTP for internal backend communication
                     // The gateway handles HTTPS termination, backends run HTTP
                     const protocol = 'http';
-                    return `http://${session.backend.host}:${session.backend.port}`;
+                    return `${protocol}://${session.backend.host}:${session.backend.port}`;
                 } else if (session.backend.type === 'unix') {
                     // For UNIX sockets, we need special handling
                     if (!session.backend.socketPath) {
